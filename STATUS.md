@@ -1,38 +1,83 @@
 # Development Status
 
 **Last Updated:** 2025-11-23
-**Current Phase:** Phase 3 - Tool Layer (Bug Fix Complete!)
-**Progress:** 100%
+**Current Phase:** Phase 4 - UI Polish (In Progress)
+**Progress:** 75%
 
 ---
 
 ## 🎯 Current Focus
 
 ### ✅ Last Task Completed
-**Phase 3: Critical Bug Fix - Tool Execution Now Working!**
-- ✅ Diagnosed streaming API bug with claude-sonnet-4-5-20250929 model
-- ✅ Identified root cause: streaming API returns empty `input: {}` for tool calls
-- ✅ Tested non-streaming API - confirmed it works correctly
-- ✅ Refactored agent.ts to use `client.messages.create()` instead of `.stream()`
-- ✅ Removed debug logging (ULTRA-DEBUG statements)
-- ✅ Verified fix with test-agent.js - file creation successful
-- ✅ Restarted dev server with working implementation
-- ✅ **Tools now execute correctly with proper parameters!**
+**Phase 4: Tool Result Rendering, Markdown Support, and Simulated Streaming!**
+- ✅ Created ToolResult component with visual status indicators
+- ✅ Added tool-specific formatters for all 7 tools
+- ✅ Implemented collapsible results with "Show more/less" buttons
+- ✅ Installed react-markdown and remark-gfm packages
+- ✅ Created Markdown component for rich text rendering
+- ✅ Added comprehensive markdown styles (headings, lists, code, tables)
+- ✅ Fixed react-markdown className prop error
+- ✅ Implemented simulated streaming (~50 words/sec)
+- ✅ Fixed window freezing issue - text now streams smoothly
+- ✅ **UI now feels responsive and polished!**
 
 ### ⏭️ Next Task
-**Phase 4: UI Polish**
-- [ ] Improve tool result rendering in UI
-- [ ] Add visual indicators for tool execution
-- [ ] Add keyboard shortcuts (Enter to send, etc.)
-- [ ] Implement Cmd+N to clear chat (already added)
+**Phase 4: Remaining UI Polish**
+- [ ] Add textarea for multi-line input (instead of single-line input)
+- [ ] Improve keyboard shortcuts (Shift+Enter for new line)
 - [ ] Implement dark/light theme toggle
-- [ ] Polish overall UI/UX
+- [ ] Add settings panel
+- [ ] Polish scrolling and layout behavior
 
 **Reference:** See [docs/05-web-ui.md](./docs/05-web-ui.md)
 
 ---
 
 ## 📝 Recent Changes (Diff Log)
+
+### Session 7 - 2025-11-23
+```diff
++ Phase 4 UI Improvements - Tool Rendering, Markdown, and Streaming!
++ Created apps/tauri-shell/src/components/ToolResult.tsx:
+  + Visual status indicators (⏳ running, ✓ success, ✗ error)
+  + Tool-specific formatters for each tool type
+  + Collapsible results for long outputs
+  + Hover effects and smooth transitions
++ Created apps/tauri-shell/src/components/Markdown.tsx:
+  + Renders GitHub Flavored Markdown (headings, lists, code, tables)
+  + Fixed className prop issue with react-markdown v10
+  + Wrapper div approach for styling
++ Updated apps/agent-runtime/src/agent.ts:
+  + Added emitTextChunked() helper function
+  + Simulates streaming by splitting text into words
+  + 20ms delay between words (~50 words/sec)
+  + Fixes window freezing issue from non-streaming API
++ Updated apps/tauri-shell/src/App.tsx:
+  + Integrated ToolResult and Markdown components
+  + Markdown rendering for assistant messages only
+  + Cleaner tool result display
++ Enhanced apps/tauri-shell/src/styles.css:
+  + 140+ new lines of styling for tools and markdown
+  + Monospace fonts, color coding, transitions
+  + Comprehensive markdown styles
++ Installed react-markdown@10.1.0 and remark-gfm@4.0.1
+```
+
+**Summary:** Phase 4 partial complete! Tool results now beautifully formatted, markdown fully supported, and simulated streaming prevents window freezing. UI feels responsive and professional.
+
+**Decisions Made:**
+- Use simulated streaming instead of loading indicator (better UX)
+- Tool-specific formatters for each tool type (better readability)
+- Collapsible outputs for long results (cleaner UI)
+- Markdown only for assistant messages (user messages stay plain text)
+- Non-blocking word-by-word emission (~50 words/sec feels natural)
+
+**Technical Details:**
+- Simulated streaming maintains non-streaming API benefits (working tools)
+- Trade-off: Small delay before text starts appearing (API call time)
+- But: Window stays responsive, no perceived freezing
+- Markdown rendering uses wrapper div to avoid className prop error
+- Tool formatters handle various data structures (arrays, objects, strings)
 
 ### Session 6 - 2025-11-23
 ```diff
@@ -273,8 +318,8 @@
 | Project Setup | ✅ Done | 100% | None |
 | Tauri Shell | ✅ Done | 100% | None |
 | Agent Runtime | ✅ Done | 100% | None |
-| Tool Layer | ✅ Done | 100% | **FIXED!** Streaming bug resolved |
-| Web UI | 🚧 In Progress | 80% | Need polish |
+| Tool Layer | ✅ Done | 100% | None |
+| Web UI | 🚧 In Progress | 90% | Need textarea, theme toggle |
 | IPC Protocol | ✅ Done | 100% | None |
 | Security | 🚧 In Progress | 50% | Need audit logs |
 
