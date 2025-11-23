@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAgent } from './useAgent'
+import { ToolResult } from './components/ToolResult'
+import { Markdown } from './components/Markdown'
 
 function App() {
   const [inputValue, setInputValue] = useState('')
@@ -75,22 +77,18 @@ function App() {
                 ) : (
                   <>
                     <div className="message-content">
-                      {msg.content}
-                      {msg.isStreaming && <span className="cursor">▊</span>}
+                      {msg.role === 'assistant' ? (
+                        <>
+                          <Markdown content={msg.content} />
+                          {msg.isStreaming && <span className="cursor">▊</span>}
+                        </>
+                      ) : (
+                        msg.content
+                      )}
                     </div>
                     {/* Show tool calls for this message */}
                     {toolCalls.filter(tc => tc.id.includes(msg.id)).map(tc => (
-                      <div key={tc.id} className="tool-call">
-                        <div className="tool-name">🔧 {tc.name}</div>
-                        <div className="tool-input">
-                          {JSON.stringify(tc.input, null, 2)}
-                        </div>
-                        {tc.result && (
-                          <div className="tool-result">
-                            → {JSON.stringify(tc.result, null, 2)}
-                          </div>
-                        )}
-                      </div>
+                      <ToolResult key={tc.id} toolCall={tc} />
                     ))}
                   </>
                 )}

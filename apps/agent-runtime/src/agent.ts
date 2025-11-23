@@ -53,6 +53,32 @@ export class AgentOrchestrator {
     }
   }
 
+  /**
+   * Simulate streaming by emitting text in chunks with small delays
+   * This provides a better UX while using the non-streaming API
+   */
+  private async emitTextChunked(text: string, requestId: string): Promise<void> {
+    // Split text into words while preserving whitespace
+    const words = text.split(/(\s+)/);
+
+    for (const word of words) {
+      if (word.length > 0) {
+        this.sendResponse({
+          type: 'token',
+          id: requestId,
+          token: word,
+          timestamp: Date.now(),
+        });
+
+        // Small delay between chunks (20ms = ~50 words/sec)
+        // Only delay on non-whitespace to maintain natural rhythm
+        if (word.trim().length > 0) {
+          await new Promise(resolve => setTimeout(resolve, 20));
+        }
+      }
+    }
+  }
+
   private async processUserMessage(request: AgentRequest): Promise<void> {
     try {
       // Add user message to history
@@ -92,16 +118,11 @@ export class AgentOrchestrator {
 
         const toolUses: Array<{ id: string; name: string; input: any }> = [];
 
-        // Send any text content as tokens
+        // Send any text content as chunked tokens (simulating streaming)
         for (const content of finalMessage.content) {
           if (content.type === 'text') {
-            // Send text content as a single token (since we're not streaming)
-            this.sendResponse({
-              type: 'token',
-              id: request.id,
-              token: content.text,
-              timestamp: Date.now(),
-            });
+            // Emit text in chunks to simulate streaming for better UX
+            await this.emitTextChunked(content.text, request.id);
           }
         }
 
