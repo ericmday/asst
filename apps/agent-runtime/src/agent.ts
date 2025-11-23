@@ -134,7 +134,7 @@ export class AgentOrchestrator {
           this.log('info', `Executing ${toolUses.length} tool(s)`);
 
           // Execute all tools and collect results
-          const toolResults: Array<{ tool_use_id: string; content: string }> = [];
+          const toolResults: Array<{ type: 'tool_result'; tool_use_id: string; content: string }> = [];
 
           for (const toolUse of toolUses) {
             try {
@@ -160,6 +160,7 @@ export class AgentOrchestrator {
               const result = await tool.execute(toolUse.input);
 
               toolResults.push({
+                type: 'tool_result',
                 tool_use_id: toolUse.id,
                 content: typeof result === 'string' ? result : JSON.stringify(result),
               });
@@ -183,6 +184,7 @@ export class AgentOrchestrator {
               this.log('error', `Tool execution failed: ${toolUse.name}`, errorMessage);
 
               toolResults.push({
+                type: 'tool_result',
                 tool_use_id: toolUse.id,
                 content: `Error: ${errorMessage}`,
               });

@@ -25,19 +25,19 @@ export function createFilesystemTools(config: AppConfig): Tool[] {
         properties: {
           path: {
             type: 'string',
-            description: 'Relative path from workspace root (e.g., "src" or "src/components")',
+            description: 'Relative path from workspace root (e.g., "src" or "src/components"). Defaults to "." for root directory.',
           },
         },
-        required: ['path'],
       },
-      execute: async (input: { path: string }) => {
-        const targetPath = validatePath(input.path);
+      execute: async (input: { path?: string }) => {
+        const inputPath = input.path || '.';
+        const targetPath = validatePath(inputPath);
         const entries = await fs.readdir(targetPath, { withFileTypes: true });
 
         return entries.map(entry => ({
           name: entry.name,
           type: entry.isDirectory() ? 'directory' : 'file',
-          path: path.join(input.path, entry.name),
+          path: path.join(inputPath, entry.name),
         }));
       },
     },
