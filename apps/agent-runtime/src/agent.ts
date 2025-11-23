@@ -62,37 +62,33 @@ export class AgentOrchestrator {
       });
 
       // Create message with streaming
-      const stream = await this.client.messages.create({
+      const stream = this.client.messages.stream({
         model: this.config.modelId,
         max_tokens: this.config.maxTokens,
         messages: this.conversationHistory,
-        tools: this.tools.map(t => ({
-          name: t.name,
-          description: t.description,
-          input_schema: t.input_schema,
-        })),
-        stream: true,
+        ...(this.tools.length > 0 && {
+          tools: this.tools.map(t => ({
+            name: t.name,
+            description: t.description,
+            input_schema: t.input_schema,
+          })),
+        }),
       });
 
       let assistantMessage = '';
 
       // Process stream
-      for await (const event of stream) {
-        if (event.type === 'content_block_delta') {
-          if (event.delta.type === 'text_delta') {
-            assistantMessage += event.delta.text;
+      stream.on('text', (text) => {
+        assistantMessage += text;
+        this.sendResponse({
+          type: 'token',
+          id: request.id,
+          token: text,
+          timestamp: Date.now(),
+        });
+      });
 
-            this.sendResponse({
-              type: 'token',
-              id: request.id,
-              token: event.delta.text,
-              timestamp: Date.now(),
-            });
-          }
-        } else if (event.type === 'message_stop') {
-          break;
-        }
-      }
+      await stream.finalMessage();
 
       // Add assistant message to history
       if (assistantMessage) {
