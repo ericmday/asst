@@ -1,18 +1,20 @@
+import type { Tool } from './types.js';
 import type { AppConfig } from '../config.js';
-
-export interface Tool {
-  name: string;
-  description: string;
-  input_schema: {
-    type: 'object';
-    properties: Record<string, unknown>;
-    required?: string[];
-  };
-  execute: (input: any) => Promise<any>;
-}
+import { createFilesystemTools } from './filesystem.js';
+import { createSystemTools } from './system.js';
 
 export function setupTools(config: AppConfig): Tool[] {
-  // For now, return an empty array
-  // Tools will be implemented in Phase 3
-  return [];
+  const tools: Tool[] = [
+    ...createFilesystemTools(config),
+    ...createSystemTools(config),
+  ];
+
+  // Optional tools based on config
+  // if (config.comfyuiApiUrl) {
+  //   tools.push(...createComfyUITools(config));
+  // }
+
+  return tools;
 }
+
+export type { Tool };

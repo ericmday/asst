@@ -69,9 +69,9 @@ export function useAgent() {
         setToolCalls((prev) => [
           ...prev,
           {
-            id: response.data.toolId,
-            name: response.data.toolName,
-            input: response.data.input,
+            id: response.data.tool_use_id,
+            name: response.data.tool_name,
+            input: response.data.tool_input,
             timestamp: response.timestamp,
           },
         ]);
@@ -81,8 +81,8 @@ export function useAgent() {
       if (response.type === 'tool_result') {
         setToolCalls((prev) =>
           prev.map((call) =>
-            call.id === response.data.toolId
-              ? { ...call, result: response.data.result }
+            call.id === response.data.tool_use_id
+              ? { ...call, result: response.data.result || response.data.error }
               : call
           )
         );

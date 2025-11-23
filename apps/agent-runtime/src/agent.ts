@@ -61,41 +61,163 @@ export class AgentOrchestrator {
         content: request.message!,
       });
 
-      // Create message with streaming
-      const stream = this.client.messages.stream({
-        model: this.config.modelId,
-        max_tokens: this.config.maxTokens,
-        messages: this.conversationHistory,
-        ...(this.tools.length > 0 && {
-          tools: this.tools.map(t => ({
-            name: t.name,
-            description: t.description,
-            input_schema: t.input_schema,
-          })),
-        }),
-      });
+      // Agentic loop - continue until Claude doesn't request more tools
+      let continueLoop = true;
+      const maxIterations = 10; // Prevent infinite loops
+      let iteration = 0;
 
-      let assistantMessage = '';
+      while (continueLoop && iteration < maxIterations) {
+        iteration++;
 
-      // Process stream
-      stream.on('text', (text) => {
-        assistantMessage += text;
-        this.sendResponse({
-          type: 'token',
-          id: request.id,
-          token: text,
-          timestamp: Date.now(),
+        // Create message with streaming
+        const stream = this.client.messages.stream({
+          model: this.config.modelId,
+          max_tokens: this.config.maxTokens,
+          messages: this.conversationHistory,
+          ...(this.tools.length > 0 && {
+            tools: this.tools.map(t => ({
+              name: t.name,
+              description: t.description,
+              input_schema: t.input_schema,
+            })),
+          }),
         });
-      });
 
-      await stream.finalMessage();
+        let assistantTextContent = '';
+        const toolUses: Array<{ id: string; name: string; input: any }> = [];
 
-      // Add assistant message to history
-      if (assistantMessage) {
+        // Process stream events
+        stream.on('text', (text) => {
+          assistantTextContent += text;
+          this.sendResponse({
+            type: 'token',
+            id: request.id,
+            token: text,
+            timestamp: Date.now(),
+          });
+        });
+
+        stream.on('content_block_start', (block) => {
+          if (block.content_block.type === 'tool_use') {
+            this.log('debug', 'Tool use started', block.content_block);
+          }
+        });
+
+        stream.on('content_block_delta', (delta) => {
+          if (delta.delta.type === 'input_json_delta' && delta.delta.partial_json) {
+            // Tool input is being streamed
+            this.log('debug', 'Tool input delta', delta.delta.partial_json);
+          }
+        });
+
+        const finalMessage = await stream.finalMessage();
+
+        // Extract tool uses from the final message
+        for (const content of finalMessage.content) {
+          if (content.type === 'tool_use') {
+            toolUses.push({
+              id: content.id,
+              name: content.name,
+              input: content.input,
+            });
+          }
+        }
+
+        // Add assistant message to history
         this.conversationHistory.push({
           role: 'assistant',
-          content: assistantMessage,
+          content: finalMessage.content,
         });
+
+        // Check if we need to execute tools
+        if (toolUses.length > 0) {
+          this.log('info', `Executing ${toolUses.length} tool(s)`);
+
+          // Execute all tools and collect results
+          const toolResults: Array<{ tool_use_id: string; content: string }> = [];
+
+          for (const toolUse of toolUses) {
+            try {
+              // Send tool_use event to frontend
+              this.sendResponse({
+                type: 'tool_use',
+                id: request.id,
+                data: {
+                  tool_use_id: toolUse.id,
+                  tool_name: toolUse.name,
+                  tool_input: toolUse.input,
+                },
+                timestamp: Date.now(),
+              });
+
+              // Find and execute the tool
+              const tool = this.tools.find(t => t.name === toolUse.name);
+              if (!tool) {
+                throw new Error(`Tool not found: ${toolUse.name}`);
+              }
+
+              this.log('debug', `Executing tool: ${toolUse.name}`, toolUse.input);
+              const result = await tool.execute(toolUse.input);
+
+              toolResults.push({
+                tool_use_id: toolUse.id,
+                content: typeof result === 'string' ? result : JSON.stringify(result),
+              });
+
+              // Send tool_result event to frontend
+              this.sendResponse({
+                type: 'tool_result',
+                id: request.id,
+                data: {
+                  tool_use_id: toolUse.id,
+                  tool_name: toolUse.name,
+                  result,
+                },
+                timestamp: Date.now(),
+              });
+
+              this.log('debug', `Tool executed successfully: ${toolUse.name}`);
+
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+              this.log('error', `Tool execution failed: ${toolUse.name}`, errorMessage);
+
+              toolResults.push({
+                tool_use_id: toolUse.id,
+                content: `Error: ${errorMessage}`,
+              });
+
+              // Send error to frontend
+              this.sendResponse({
+                type: 'tool_result',
+                id: request.id,
+                data: {
+                  tool_use_id: toolUse.id,
+                  tool_name: toolUse.name,
+                  error: errorMessage,
+                },
+                timestamp: Date.now(),
+              });
+            }
+          }
+
+          // Add tool results to conversation history as user message
+          this.conversationHistory.push({
+            role: 'user',
+            content: toolResults,
+          });
+
+          // Continue the loop to let Claude process tool results
+          continueLoop = true;
+
+        } else {
+          // No tools requested, exit loop
+          continueLoop = false;
+        }
+      }
+
+      if (iteration >= maxIterations) {
+        this.log('warn', 'Max iterations reached in agentic loop');
       }
 
       // Send done signal

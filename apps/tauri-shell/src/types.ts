@@ -24,9 +24,9 @@ export interface ToolUseResponse {
   type: 'tool_use';
   id: string;
   data: {
-    toolId: string;
-    toolName: string;
-    input: any;
+    tool_use_id: string;
+    tool_name: string;
+    tool_input: any;
   };
   timestamp: number;
 }
@@ -35,9 +35,10 @@ export interface ToolResultResponse {
   type: 'tool_result';
   id: string;
   data: {
-    toolId: string;
-    toolName: string;
-    result: any;
+    tool_use_id: string;
+    tool_name: string;
+    result?: any;
+    error?: string;
   };
   timestamp: number;
 }
