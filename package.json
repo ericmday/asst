@@ -1,0 +1,29 @@
+{
+  "name": "desktop-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lightweight desktop assistant with Tauri + Claude Agent SDK",
+  "author": "Eric Day",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "scripts": {
+    "dev:tauri": "pnpm --filter tauri-shell dev",
+    "dev:agent": "pnpm --filter agent-runtime dev",
+    "build:tauri": "pnpm --filter tauri-shell build",
+    "build:agent": "pnpm --filter agent-runtime build",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "clean": "pnpm -r clean && rm -rf node_modules"
+  },
+  "keywords": [
+    "tauri",
+    "claude",
+    "assistant",
+    "desktop",
+    "ai"
+  ]
+}

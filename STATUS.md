@@ -1,35 +1,67 @@
 # Development Status
 
 **Last Updated:** 2025-11-22
-**Current Phase:** Phase 1 - Foundation
-**Progress:** 10%
+**Current Phase:** Phase 2 - Agent Core
+**Progress:** 30%
 
 ---
 
 ## 🎯 Current Focus
 
 ### ✅ Last Task Completed
-**Repository setup and initialization**
-- Created `.gitignore` with comprehensive ignore rules
-- Created professional `README.md`
-- Initialized git repository
-- Created GitHub repo: https://github.com/ericmday/asst
-- Made initial commit with all documentation (11 files, 3,835 lines)
+**Phase 1: Foundation - Complete!**
+- ✅ Installed prerequisites (Node v22.20.0, Rust v1.91.1, pnpm v10.23.0)
+- ✅ Created monorepo structure with pnpm workspaces
+- ✅ Initialized Tauri app with React + TypeScript + Vite
+- ✅ Implemented Rust backend (system tray, global hotkey, window management)
+- ✅ Initialized Node.js agent runtime with Anthropic SDK
+- ✅ Implemented stdio IPC protocol
+- ✅ Created basic chat UI
+- ✅ Verified both apps compile and start successfully
 
 ### ⏭️ Next Task
-**Begin Phase 1: Initialize monorepo structure**
-- [ ] Create root `package.json` with workspace config
-- [ ] Set up `pnpm-workspace.yaml`
-- [ ] Initialize Tauri app in `apps/tauri-shell/`
-- [ ] Initialize Node app in `apps/agent-runtime/`
-- [ ] Create `.env.example`
-- [ ] Verify both apps can start independently
+**Phase 2: Connect Tauri shell to agent runtime**
+- [ ] Wire up Tauri IPC commands to spawn agent process
+- [ ] Connect React UI to Tauri invoke API
+- [ ] Test message flow: UI → Tauri → Agent → UI
+- [ ] Add streaming response display in UI
+- [ ] Test with real Anthropic API key
+- [ ] Implement conversation history in UI
 
-**Reference:** See [docs/01-project-setup.md](./docs/01-project-setup.md)
+**Reference:** See [docs/02-tauri-shell.md](./docs/02-tauri-shell.md) and [docs/06-ipc-protocol.md](./docs/06-ipc-protocol.md)
 
 ---
 
 ## 📝 Recent Changes (Diff Log)
+
+### Session 2 - 2025-11-22
+```diff
++ Installed Rust (v1.91.1) and pnpm (v10.23.0)
++ Created root package.json with workspace scripts
++ Created pnpm-workspace.yaml
++ Built Tauri shell (apps/tauri-shell/):
+  + package.json, tsconfig.json, vite.config.ts
+  + Cargo.toml, build.rs, tauri.conf.json
+  + src/main.rs (system tray, global hotkey, window management)
+  + React UI (App.tsx, main.tsx, styles.css)
++ Built agent runtime (apps/agent-runtime/):
+  + package.json, tsconfig.json
+  + src/index.ts (stdio IPC handler)
+  + src/config.ts (env config loader)
+  + src/agent.ts (Anthropic SDK orchestrator)
+  + src/tools/index.ts (tool framework)
++ Created .env.example and .env
++ Installed all dependencies (180 packages)
++ Verified agent runtime starts and sends ready signal
++ Verified Rust code compiles successfully
+```
+
+**Summary:** Phase 1 Foundation complete! Both apps functional. Monorepo structure ready. Ready to connect Tauri shell to agent runtime.
+
+**Decisions Made:**
+- Fixed Cargo.toml feature: `global-shortcut` → `global-shortcut-all`
+- Created placeholder icons for development
+- Agent runtime runs with placeholder API key (needs real key for Phase 2)
 
 ### Session 1 (Part 2) - 2025-11-22
 ```diff
@@ -76,12 +108,12 @@
 | Component | Status | Progress | Blockers |
 |-----------|--------|----------|----------|
 | Documentation | ✅ Done | 100% | None |
-| Project Setup | 🚧 Starting | 10% | None |
-| Tauri Shell | ⬜ Todo | 0% | Need project setup |
-| Agent Runtime | ⬜ Todo | 0% | Need project setup |
-| Tool Layer | ⬜ Todo | 0% | Need agent runtime |
-| Web UI | ⬜ Todo | 0% | Need Tauri shell |
-| IPC Protocol | ⬜ Todo | 0% | Need both apps |
+| Project Setup | ✅ Done | 100% | None |
+| Tauri Shell | 🚧 In Progress | 60% | Need IPC connection |
+| Agent Runtime | 🚧 In Progress | 70% | Need IPC connection |
+| Tool Layer | ⬜ Todo | 0% | Need Phase 2 complete |
+| Web UI | 🚧 In Progress | 40% | Need streaming display |
+| IPC Protocol | 🚧 In Progress | 50% | Need wiring |
 | Security | ⬜ Todo | 0% | Need tools |
 
 ---
@@ -89,33 +121,36 @@
 ## 🚧 Active Development
 
 ### In Progress
-- **Phase 1: Foundation** - Starting monorepo initialization
-- Repository setup complete, beginning code structure
+- **Phase 2: Agent Core** - Connecting Tauri shell to agent runtime
+- Need to wire up IPC communication between apps
+- Need to implement streaming response display in UI
 
 ### Blocked
 - None
 
 ### Questions/Decisions Needed
-- [ ] Styling approach: Tailwind CSS vs plain CSS modules?
 - [ ] Should conversation history persist across app restarts?
 - [ ] Icon design and asset generation strategy?
+- [ ] Where to store Anthropic API key? (OS keychain vs .env)
 
 ---
 
 ## 🎯 Phase Checklist
 
-### Phase 1: Foundation (Next)
-- [ ] Create monorepo structure
-- [ ] Initialize Tauri app
-- [ ] Initialize agent runtime
-- [ ] Implement basic stdio IPC
-- [ ] Test round-trip communication
-- [ ] **Milestone:** "Hello World" - Apps communicate
+### Phase 1: Foundation ✅ Complete
+- [x] Create monorepo structure
+- [x] Initialize Tauri app
+- [x] Initialize agent runtime
+- [x] Implement basic stdio IPC
+- [ ] Test round-trip communication (Phase 2)
+- [ ] **Milestone:** "Hello World" - Apps communicate (Phase 2)
 
-### Phase 2: Agent Core
-- [ ] Integrate Anthropic SDK
-- [ ] Implement streaming responses
-- [ ] Add conversation state
+### Phase 2: Agent Core (In Progress)
+- [x] Integrate Anthropic SDK
+- [ ] Wire up Tauri → Agent IPC
+- [ ] Connect UI to Tauri invoke API
+- [ ] Implement streaming responses in UI
+- [ ] Add conversation state display
 - [ ] Basic error handling
 - [ ] **Milestone:** Chat with Claude works
 
