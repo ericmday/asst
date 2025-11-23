@@ -70,51 +70,45 @@ export class AgentOrchestrator {
         iteration++;
 
         // Create message with streaming
-        const stream = this.client.messages.stream({
+        const toolSchemas = this.tools.length > 0 ? this.tools.map(t => ({
+          name: t.name,
+          description: t.description,
+          input_schema: t.input_schema,
+        })) : [];
+
+        // Use non-streaming API due to streaming bug with claude-sonnet-4-5-20250929
+        // Streaming API returns empty tool inputs, non-streaming works correctly
+        const finalMessage = await this.client.messages.create({
           model: this.config.modelId,
           max_tokens: this.config.maxTokens,
+          system: "You are a helpful AI assistant with access to tools. When you need to perform an action like reading or writing files, you MUST use the available tools by providing ALL required parameters. Always fill in the complete tool input parameters based on the user's request.",
           messages: this.conversationHistory,
-          ...(this.tools.length > 0 && {
-            tools: this.tools.map(t => ({
-              name: t.name,
-              description: t.description,
-              input_schema: t.input_schema,
-            })),
+          ...(toolSchemas.length > 0 && {
+            tools: toolSchemas,
           }),
         });
 
-        let assistantTextContent = '';
+        this.log('debug', 'Received response from API');
+
         const toolUses: Array<{ id: string; name: string; input: any }> = [];
 
-        // Process stream events
-        stream.on('text', (text) => {
-          assistantTextContent += text;
-          this.sendResponse({
-            type: 'token',
-            id: request.id,
-            token: text,
-            timestamp: Date.now(),
-          });
-        });
-
-        stream.on('content_block_start', (block) => {
-          if (block.content_block.type === 'tool_use') {
-            this.log('debug', 'Tool use started', block.content_block);
+        // Send any text content as tokens
+        for (const content of finalMessage.content) {
+          if (content.type === 'text') {
+            // Send text content as a single token (since we're not streaming)
+            this.sendResponse({
+              type: 'token',
+              id: request.id,
+              token: content.text,
+              timestamp: Date.now(),
+            });
           }
-        });
-
-        stream.on('content_block_delta', (delta) => {
-          if (delta.delta.type === 'input_json_delta' && delta.delta.partial_json) {
-            // Tool input is being streamed
-            this.log('debug', 'Tool input delta', delta.delta.partial_json);
-          }
-        });
-
-        const finalMessage = await stream.finalMessage();
+        }
 
         // Extract tool uses from the final message
         for (const content of finalMessage.content) {
           if (content.type === 'tool_use') {
+            this.log('debug', 'Found tool use:', content.name);
             toolUses.push({
               id: content.id,
               name: content.name,

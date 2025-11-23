@@ -7,15 +7,6 @@ import type { Tool } from './types.js';
 export function createFilesystemTools(config: AppConfig): Tool[] {
   const allowedRoot = path.resolve(config.allowedRootDir);
 
-  // Ensure workspace directory exists on first use
-  let workspaceInitialized = false;
-  async function ensureWorkspace(): Promise<void> {
-    if (!workspaceInitialized) {
-      await fs.mkdir(allowedRoot, { recursive: true });
-      workspaceInitialized = true;
-    }
-  }
-
   // Helper to validate paths
   function validatePath(relativePath: string): string {
     const resolved = path.resolve(allowedRoot, relativePath);
@@ -39,7 +30,6 @@ export function createFilesystemTools(config: AppConfig): Tool[] {
         },
       },
       execute: async (input: { path?: string }) => {
-        await ensureWorkspace();
         const inputPath = input.path || '.';
         const targetPath = validatePath(inputPath);
         const entries = await fs.readdir(targetPath, { withFileTypes: true });
@@ -66,7 +56,6 @@ export function createFilesystemTools(config: AppConfig): Tool[] {
         required: ['path'],
       },
       execute: async (input: { path: string }) => {
-        await ensureWorkspace();
         const targetPath = validatePath(input.path);
         const stats = await fs.stat(targetPath);
 
@@ -103,7 +92,6 @@ export function createFilesystemTools(config: AppConfig): Tool[] {
         required: ['path', 'content'],
       },
       execute: async (input: { path: string; content: string }) => {
-        await ensureWorkspace();
         const targetPath = validatePath(input.path);
 
         // Ensure parent directory exists
@@ -138,7 +126,6 @@ export function createFilesystemTools(config: AppConfig): Tool[] {
         required: ['pattern'],
       },
       execute: async (input: { pattern: string; maxResults?: number }) => {
-        await ensureWorkspace();
         const matches = await glob(input.pattern, {
           cwd: allowedRoot,
           nodir: false,

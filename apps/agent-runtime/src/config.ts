@@ -29,7 +29,7 @@ export interface AppConfig {
 export function loadConfig(): AppConfig {
   const config: AppConfig = {
     anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
-    modelId: process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022',
+    modelId: process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022', // Using stable version due to tool input issues with newer models
     maxTokens: parseInt(process.env.MAX_TOKENS || '4096', 10),
 
     allowedRootDir: process.env.ALLOWED_ROOT_DIR || path.join(process.env.HOME || '', 'workspace'),
@@ -38,7 +38,7 @@ export function loadConfig(): AppConfig {
     comfyuiApiUrl: process.env.COMFYUI_API_URL,
     firebaseProjectId: process.env.FIREBASE_PROJECT_ID,
 
-    logLevel: (process.env.LOG_LEVEL as any) || 'info',
+    logLevel: (process.env.LOG_LEVEL as any) || 'debug',
   };
 
   // Validate required fields
