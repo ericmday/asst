@@ -25,6 +25,22 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd+N (Mac) or Ctrl+N (Windows/Linux) to clear chat
+      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+        e.preventDefault()
+        if (messages.length > 0) {
+          clearHistory()
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [messages.length, clearHistory])
+
   return (
     <div className="app">
       <div className="header">
@@ -45,7 +61,8 @@ function App() {
         {messages.length === 0 ? (
           <div className="empty-state">
             <p>Ask me anything...</p>
-            <p className="hint">Press Cmd+Shift+Space to toggle window</p>
+            <p className="hint">Cmd+Shift+Space to toggle window</p>
+            <p className="hint">Cmd+N to clear chat</p>
           </div>
         ) : (
           <>
