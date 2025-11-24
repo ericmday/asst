@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { X, Send, Trash2, Menu } from 'lucide-react'
 import { appWindow, LogicalSize } from '@tauri-apps/api/window'
 import { useAgent } from './useAgent'
@@ -11,6 +11,7 @@ import type { ImageAttachment } from './types'
 const COMPACT_HEIGHT = 90  // Compact - just input area (no header, no frame)
 const EXPANDED_HEIGHT = 600
 const WINDOW_WIDTH = 360
+const INACTIVITY_TIMEOUT = 5 * 60 * 1000  // 5 minutes in milliseconds
 
 // Slash command definitions
 interface SlashCommand {
@@ -39,14 +40,11 @@ function App() {
     const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null
     return savedTheme || 'light'
   })
-  const [isExpanded, setIsExpanded] = useState(() => {
-    // Load expanded state from localStorage
-    const savedExpanded = localStorage.getItem('windowExpanded')
-    return savedExpanded === 'true'
-  })
+  const [isExpanded, setIsExpanded] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const slashMenuRef = useRef<HTMLDivElement>(null)
+  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null)
   const { messages, toolCalls, isAgentReady, isLoading, sendMessage, clearHistory, loadMessages } = useAgent()
 
   // Filter slash commands based on input
@@ -62,28 +60,74 @@ function App() {
     localStorage.setItem('theme', theme)
   }, [theme])
 
-  // Restore window size on mount based on expanded state
+  // Set initial compact size on mount
   useEffect(() => {
-    const restoreWindowSize = async () => {
-      const height = isExpanded ? EXPANDED_HEIGHT : COMPACT_HEIGHT
-      await appWindow.setSize(new LogicalSize(WINDOW_WIDTH, height))
+    const setInitialSize = async () => {
+      await appWindow.setSize(new LogicalSize(WINDOW_WIDTH, COMPACT_HEIGHT))
     }
-    restoreWindowSize()
-  }, []) // Only run on mount
+    setInitialSize()
+  }, [])
 
-  // Save expanded state to localStorage when it changes
-  useEffect(() => {
-    localStorage.setItem('windowExpanded', String(isExpanded))
-  }, [isExpanded])
-
-  const toggleTheme = () => {
-    setTheme(prev => prev === 'light' ? 'dark' : 'light')
-  }
-
+  // Define functions before useEffects that use them
   const expandWindow = async () => {
     await appWindow.setSize(new LogicalSize(WINDOW_WIDTH, EXPANDED_HEIGHT))
     setIsExpanded(true)
   }
+
+  const compactWindow = async () => {
+    await appWindow.setSize(new LogicalSize(WINDOW_WIDTH, COMPACT_HEIGHT))
+    setIsExpanded(false)
+  }
+
+  const resetInactivityTimer = useCallback(() => {
+    // Clear existing timer
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current)
+    }
+
+    // Only set timer if window is expanded
+    if (isExpanded) {
+      inactivityTimerRef.current = setTimeout(async () => {
+        // Only auto-compact if not currently loading
+        if (!isLoading && isExpanded) {
+          await compactWindow()
+        }
+      }, INACTIVITY_TIMEOUT)
+    }
+  }, [isExpanded, isLoading])
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light')
+    resetInactivityTimer()
+  }
+
+  // Auto-expand when messages are loaded (e.g., from conversation history)
+  useEffect(() => {
+    if (messages.length > 0 && !isExpanded) {
+      expandWindow()
+    }
+  }, [messages.length])
+
+  // Start inactivity timer when window becomes expanded
+  useEffect(() => {
+    if (isExpanded) {
+      resetInactivityTimer()
+    }
+    return () => {
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current)
+      }
+    }
+  }, [isExpanded, resetInactivityTimer])
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current)
+      }
+    }
+  }, [])
 
   const handleSend = async () => {
     if ((inputValue.trim() || pastedImages.length > 0) && !isLoading) {
@@ -101,6 +145,8 @@ function App() {
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto'
       }
+      // Reset inactivity timer on user interaction
+      resetInactivityTimer()
     }
   }
 
@@ -129,12 +175,15 @@ function App() {
           }])
         }
         reader.readAsDataURL(file)
+        // Reset inactivity timer on user interaction
+        resetInactivityTimer()
       }
     }
   }
 
   const removeImage = (index: number) => {
     setPastedImages(prev => prev.filter((_, i) => i !== index))
+    resetInactivityTimer()
   }
 
   // Handle command selection
@@ -143,6 +192,7 @@ function App() {
     setShowSlashMenu(false)
     setSelectedCommandIndex(0)
     textareaRef.current?.focus()
+    resetInactivityTimer()
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -198,6 +248,9 @@ function App() {
     const textarea = e.target
     textarea.style.height = 'auto'
     textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`
+
+    // Reset inactivity timer on user interaction
+    resetInactivityTimer()
   }
 
   // Auto-scroll to bottom when new messages arrive
@@ -224,18 +277,23 @@ function App() {
   const handleConversationSelect = (id: string) => {
     setCurrentConversationId(id)
     // Messages will be loaded by Conversations component via loadMessages callback
+    resetInactivityTimer()
   }
 
   const handleNewConversation = () => {
     setCurrentConversationId(undefined)
     clearHistory()
+    resetInactivityTimer()
   }
 
   return (
     <div className="app">
       <Navigation
         isOpen={showNavigation}
-        onClose={() => setShowNavigation(false)}
+        onClose={() => {
+          setShowNavigation(false)
+          resetInactivityTimer()
+        }}
         theme={theme}
         onThemeToggle={toggleTheme}
         currentConversationId={currentConversationId}
@@ -246,7 +304,10 @@ function App() {
 
       {isExpanded && (
         <div className="header">
-          <button onClick={() => setShowNavigation(true)} className="hamburger-btn" title="Menu">
+          <button onClick={() => {
+            setShowNavigation(true)
+            resetInactivityTimer()
+          }} className="hamburger-btn" title="Menu">
             <Menu size={20} />
           </button>
           <div className="header-actions">
@@ -254,7 +315,10 @@ function App() {
               {isAgentReady ? '● Ready' : '○ Starting...'}
             </span>
             {messages.length > 0 && (
-              <button onClick={clearHistory} className="clear-btn">
+              <button onClick={() => {
+                clearHistory()
+                resetInactivityTimer()
+              }} className="clear-btn">
                 <Trash2 size={16} />
                 Clear
               </button>
