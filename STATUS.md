@@ -9,7 +9,7 @@
 ## 🎯 Current Focus
 
 ### ✅ Last Task Completed
-**SDK Migration Phase 3: Tool Conversion - COMPLETE!**
+**Conversation History UI Integration - COMPLETE!**
 
 **Core Adapter (Phase 2):**
 - ✅ Created src/sdk-adapter.ts (335 lines)
@@ -55,13 +55,14 @@
 - Ready for tool integration
 
 ### ⏭️ Next Task
-**Conversation History UI Integration**
+**Conversation History Enhancements**
 
-- [ ] Debug: Frontend receiving undefined data from backend (IPC serialization issue)
-- [ ] Complete: Load and display conversation messages in UI
-- [ ] Real-time conversation updates in sidebar
+- [x] Debug: Frontend receiving undefined data from backend (IPC serialization issue)
+- [x] Complete: Load and display conversation messages in UI
+- [ ] Real-time conversation title updates in sidebar
 - [ ] Search/filter conversations
 - [ ] Keyboard shortcuts for navigation (Cmd+1/2/3 for tabs)
+- [ ] Conversation export functionality
 
 **Option B: SDK Migration Phase 4+**
 - [ ] Implement SDK hooks (PreToolUse, PostToolUse, SessionStart, SessionEnd)
@@ -74,6 +75,67 @@
 ---
 
 ## 📝 Recent Changes (Diff Log)
+
+### Session 19 - 2025-11-24
+```diff
++ Conversation History UI Integration - COMPLETE!
++ Fixed IPC serialization issues:
+  + apps/tauri-shell/src-tauri/src/agent_ipc.rs (modified)
+    - Added data: Option<serde_json::Value> to Done variant
+    - Rust deserializer now captures conversation/message data
+  + apps/tauri-shell/src/useAgent.ts (modified)
+    - Added loadMessages() function to set messages state
+    - Exported loadMessages in hook return
+  + apps/tauri-shell/src/App.tsx (modified)
+    - Destructured loadMessages from useAgent
+    - Passed loadMessages callback to Navigation component
+    - Updated handleConversationSelect comment
+  + apps/tauri-shell/src/components/Navigation.tsx (modified)
+    - Added onLoadMessages prop to NavigationProps interface
+    - Imported Message type from types
+    - Forwarded callback to Conversations component
+  + apps/tauri-shell/src/components/Conversations.tsx (modified)
+    - Added onLoadMessages prop to ConversationsProps
+    - Created BackendMessage interface for type safety
+    - Implemented message loading event handler
+    - JSON.parse() for double-encoded message content
+    - Convert backend messages to UI Message format
+    - Call onLoadMessages when messages received
++ Technical achievements:
+  + ✅ Root cause identified: Missing data field in Rust enum
+  + ✅ Full message loading flow implemented (App → Nav → Conversations)
+  + ✅ Messages parse correctly (handle JSON-encoded content)
+  + ✅ Clicking conversation loads full message history
+  + ✅ Chat window displays loaded messages correctly
++ Tested successfully:
+  + ✅ Conversations list displays in History tab
+  + ✅ Click conversation loads messages into chat
+  + ✅ Message content properly decoded
+  + ✅ Multiple conversations tested (2-6 messages each)
+  + ✅ User and assistant messages display correctly
+```
+
+**Summary:** Conversation history now fully functional! Fixed critical IPC bug where Rust wasn't deserializing the data field, then implemented complete message loading flow. Users can now click any conversation in History and see all messages load into the chat window.
+
+**Decisions Made:**
+- Parse JSON-encoded content with try/catch for robustness
+- Use callback pattern for message loading (clean separation of concerns)
+- Keep message format conversion in Conversations component
+- Handle both JSON string and regular string content gracefully
+
+**Technical Details:**
+- IPC fix: Added Optional data field to Done variant
+- Flow: useAgent.loadMessages → App → Navigation → Conversations
+- Content parsing: JSON.parse() for double-encoded strings
+- Message conversion: BackendMessage → UI Message format
+- 5 files changed, 53 insertions(+), 5 deletions(-)
+
+**Next Steps:**
+1. Test with longer conversation histories
+2. Add real-time title updates when generated
+3. Implement conversation search/filter
+4. Add keyboard shortcuts for tab navigation
+5. Consider conversation export feature
 
 ### Session 18 - 2025-11-24
 ```diff
