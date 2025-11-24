@@ -82,14 +82,17 @@ async function main() {
             break;
 
           case 'load_conversation':
-            // Load an existing conversation
+            // Load an existing conversation with its messages
             if (request.conversation_id) {
-              const conversation = adapter.loadConversation(request.conversation_id);
-              if (conversation) {
+              const result = adapter.loadConversation(request.conversation_id);
+              if (result) {
                 console.log(JSON.stringify({
                   type: 'done',
                   id: request.id,
-                  data: { conversation },
+                  data: {
+                    conversation: result.conversation,
+                    messages: result.messages
+                  },
                   timestamp: Date.now()
                 }));
               } else {

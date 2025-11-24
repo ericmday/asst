@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { MessageSquare, Plus, Trash2, X } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/tauri'
+import { listen } from '@tauri-apps/api/event'
 
 interface Conversation {
   id: string
@@ -29,25 +30,43 @@ export function Conversations({
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Load conversations when sidebar opens
+  // Load conversations when component mounts or sidebar opens
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen || embedded) {
       loadConversations()
     }
-  }, [isOpen])
+  }, [isOpen, embedded])
+
+  // Listen for agent responses with conversation data
+  useEffect(() => {
+    const unlisten = listen<any>('agent_response', (event) => {
+      const response = event.payload
+      console.log('[Conversations] Received event:', response.type, response.data)
+
+      // Handle list_conversations response
+      if (response.type === 'done' && response.data?.conversations) {
+        console.log('[Conversations] Setting conversations:', response.data.conversations)
+        setConversations(response.data.conversations)
+        setLoading(false)
+      }
+
+      // Handle load_conversation response
+      if (response.type === 'done' && response.data?.messages) {
+        console.log('[Conversations] Loaded conversation messages:', response.data.messages)
+        // TODO: Pass messages to parent component to display
+      }
+    })
+
+    return () => {
+      unlisten.then((fn) => fn())
+    }
+  }, [])
 
   const loadConversations = async () => {
     try {
       setLoading(true)
-      // Note: The actual data will come through the agent_response event
-      // This is just to trigger the request
+      // The actual data will come through the agent_response event listener above
       await invoke('list_conversations')
-
-      // For now, we'll use a timeout to wait for the response
-      // In a production app, you'd handle this via events
-      setTimeout(() => {
-        setLoading(false)
-      }, 500)
     } catch (error) {
       console.error('Failed to load conversations:', error)
       setLoading(false)

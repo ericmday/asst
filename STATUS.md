@@ -55,12 +55,12 @@
 - Ready for tool integration
 
 ### ⏭️ Next Task
-**Option A: UI/Feature Enhancements**
+**Conversation History UI Integration**
 
-- [ ] Load conversation messages when selecting from history
+- [ ] Debug: Frontend receiving undefined data from backend (IPC serialization issue)
+- [ ] Complete: Load and display conversation messages in UI
 - [ ] Real-time conversation updates in sidebar
 - [ ] Search/filter conversations
-- [ ] Export conversation functionality
 - [ ] Keyboard shortcuts for navigation (Cmd+1/2/3 for tabs)
 
 **Option B: SDK Migration Phase 4+**
@@ -74,6 +74,63 @@
 ---
 
 ## 📝 Recent Changes (Diff Log)
+
+### Session 18 - 2025-11-24
+```diff
++ Conversation Loading & Dynamic Titles - Backend Complete!
++ Backend implementation (SDK integration):
+  + apps/agent-runtime/src/sdk-adapter.ts (modified)
+    - Updated loadConversation() to return both conversation and messages
+    - Added Anthropic client for dynamic title generation
+    - Implemented generateDynamicTitle() using Claude 3.5 Haiku
+    - Fire-and-forget async title generation after first exchange
+    - Returns: { conversation: {...}, messages: [...] }
+  + apps/agent-runtime/src/index.ts (modified)
+    - Updated load_conversation handler to return messages
+    - IPC response includes both conversation metadata and message history
+  + apps/agent-runtime/src/persistence/database.ts (reviewed)
+    - getMessages() returns Message[] with content as JSON strings
+    - getMessageHistory() returns Anthropic.MessageParam[] format
++ Frontend implementation (partial - event listener added):
+  + apps/tauri-shell/src/components/Conversations.tsx (modified)
+    - Added listen() import from Tauri API
+    - Added event listener for agent_response events
+    - Handles list_conversations and load_conversation responses
+    - Updates conversations state when data received
+    - Fixed loading trigger for embedded mode
++ Technical achievements:
+  + ✅ Dynamic title generation with Claude (5-10 word summaries)
+  + ✅ Messages loaded from database on conversation click
+  + ✅ Backend IPC protocol complete and tested
+  + ✅ TypeScript compilation clean
+  + ⚠️  Frontend event data serialization issue (data = undefined)
++ Known Issues:
+  - Frontend receiving undefined data in agent_response events
+  - Conversations list shows "Loading..." instead of conversation list
+  - React key warning: duplicate message IDs in UI (separate issue)
+  - Need to debug IPC event serialization in next session
+```
+
+**Summary:** Backend fully implements conversation loading with message history and intelligent title generation. Frontend event listener added but data not deserializing properly from IPC events. Backend tested and working via logs - frontend integration needs debugging.
+
+**Decisions Made:**
+- Use Claude 3.5 Haiku for title generation (fast & cheap)
+- Generate titles asynchronously to avoid blocking conversation
+- Return full message objects (not just text) for rich display options
+- Keep simple truncated title as fallback before dynamic title generates
+
+**Technical Details:**
+- SDK adapter: +50 lines (dynamic title generation)
+- Title prompt: "Generate concise 5-10 word title"
+- Messages include role, content (JSON), timestamp
+- Load conversation returns: conversation + messages array
+
+**Next Steps:**
+1. Debug frontend event data serialization issue
+2. Verify agent_response event payload structure
+3. Display loaded messages in chat window
+4. Test conversation switching with message display
+5. Handle conversation title updates in real-time
 
 ### Session 17 - 2025-11-24
 ```diff

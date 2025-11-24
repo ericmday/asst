@@ -1,7 +1,8 @@
 import { query, type SDKMessage, type SDKAssistantMessage, type SDKPartialAssistantMessage, type SDKResultMessage, type SDKUserMessage, type McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk';
 import type { AppConfig } from './config.js';
-import { ConversationDatabase, type Conversation } from './persistence/database.js';
+import { ConversationDatabase, type Conversation, type Message } from './persistence/database.js';
 import { randomUUID } from 'crypto';
+import Anthropic from '@anthropic-ai/sdk';
 
 /**
  * IPC Response types that match the protocol expected by Tauri shell
@@ -40,11 +41,13 @@ export class SDKAdapter {
   private currentConversationId?: string;  // Database conversation ID
   private db: ConversationDatabase;
   private currentAssistantMessage: string = '';  // Accumulate assistant response
+  private anthropic: Anthropic;  // Direct API client for title generation
 
   constructor(config: AppConfig, mcpServer: McpSdkServerConfigWithInstance) {
     this.config = config;
     this.mcpServer = mcpServer;
     this.db = new ConversationDatabase();
+    this.anthropic = new Anthropic({ apiKey: config.anthropicApiKey });
   }
 
   /**
@@ -60,15 +63,16 @@ export class SDKAdapter {
   }
 
   /**
-   * Load an existing conversation
+   * Load an existing conversation with its messages
    */
-  loadConversation(conversationId: string): Conversation | null {
+  loadConversation(conversationId: string): { conversation: Conversation; messages: Message[] } | null {
     const conversation = this.db.getConversation(conversationId);
     if (conversation) {
+      const messages = this.db.getMessages(conversationId);
       this.currentConversationId = conversationId;
       this.currentSessionId = undefined;  // Clear SDK session - will be rebuilt from history
-      this.log('info', `Loaded conversation: ${conversationId}`);
-      return conversation;
+      this.log('info', `Loaded conversation: ${conversationId} with ${messages.length} messages`);
+      return { conversation, messages };
     }
     return null;
   }
@@ -171,8 +175,15 @@ export class SDKAdapter {
         // Auto-generate title from first user message if still "New Chat"
         const conversation = this.db.getConversation(this.currentConversationId);
         if (conversation && conversation.title === 'New Chat') {
-          const title = this.generateTitle(message);
-          this.db.updateConversationTitle(this.currentConversationId, title);
+          // First set a quick fallback title
+          const fallbackTitle = this.generateTitle(message);
+          this.db.updateConversationTitle(this.currentConversationId, fallbackTitle);
+
+          // Then generate a better title with Claude in the background
+          // Fire-and-forget - don't await to avoid blocking the response
+          this.generateDynamicTitle(message, this.currentAssistantMessage).catch(err => {
+            this.log('error', 'Background title generation failed:', err);
+          });
         }
       }
 
@@ -430,7 +441,7 @@ export class SDKAdapter {
   }
 
   /**
-   * Generate a conversation title from the user's first message
+   * Generate a conversation title from the user's first message (simple fallback)
    */
   private generateTitle(message: string): string {
     // Take first 50 characters, trim, and add ellipsis if needed
@@ -440,6 +451,46 @@ export class SDKAdapter {
       return trimmed;
     }
     return trimmed.substring(0, maxLength).trim() + '...';
+  }
+
+  /**
+   * Generate a dynamic, intelligent title using Claude
+   * This runs asynchronously in the background to avoid blocking the conversation
+   */
+  private async generateDynamicTitle(userMessage: string, assistantMessage: string): Promise<void> {
+    if (!this.currentConversationId) return;
+
+    try {
+      this.log('info', 'Generating dynamic title with Claude...');
+
+      const response = await this.anthropic.messages.create({
+        model: 'claude-3-5-haiku-20241022', // Use fast, cheap model for title generation
+        max_tokens: 50,
+        temperature: 0.7,
+        messages: [{
+          role: 'user',
+          content: `Generate a concise, descriptive title (5-10 words max) for this conversation. Only respond with the title, nothing else.
+
+User: ${userMessage}
+Assistant: ${assistantMessage}
+
+Title:`
+        }]
+      });
+
+      // Extract title from response
+      const titleContent = response.content[0];
+      if (titleContent.type === 'text') {
+        const title = titleContent.text.trim().replace(/^["']|["']$/g, ''); // Remove quotes if present
+
+        // Update the conversation title in the database
+        this.db.updateConversationTitle(this.currentConversationId, title);
+        this.log('info', `Dynamic title generated: "${title}"`);
+      }
+    } catch (error) {
+      this.log('error', 'Failed to generate dynamic title:', error);
+      // Silently fail - the simple truncated title will remain
+    }
   }
 
   /**
