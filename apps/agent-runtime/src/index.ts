@@ -1,7 +1,20 @@
 import { createInterface } from 'readline';
-import { AgentOrchestrator } from './agent.js';
+import { SDKAdapter, type ImageAttachment } from './sdk-adapter.js';
 import { loadConfig } from './config.js';
 import { setupTools } from './tools/index.js';
+
+/**
+ * Request interface matching the IPC protocol from Tauri shell
+ */
+interface AgentRequest {
+  id: string;
+  kind: 'user_message' | 'clear_history' | 'load_conversation' | 'new_conversation';
+  message?: string;
+  conversation_id?: string;
+  images?: string; // JSON string of image attachments
+  attachments?: Array<{ path: string; mime: string }>;
+  metadata?: Record<string, unknown>;
+}
 
 async function main() {
   try {
@@ -11,9 +24,9 @@ async function main() {
     // Setup tools (async to load custom tools)
     const tools = await setupTools(config);
 
-    // Create agent orchestrator
-    const orchestrator = new AgentOrchestrator(config, tools);
-    await orchestrator.initialize();
+    // Create SDK adapter
+    const adapter = new SDKAdapter(config, tools);
+    console.error('[INFO] SDK adapter initialized');
 
     // Setup stdio IPC
     const rl = createInterface({
@@ -25,8 +38,57 @@ async function main() {
     // Handle incoming messages
     rl.on('line', async (line: string) => {
       try {
-        const request = JSON.parse(line);
-        await orchestrator.handleRequest(request);
+        const request: AgentRequest = JSON.parse(line);
+
+        // Handle different request types
+        switch (request.kind) {
+          case 'user_message':
+            if (request.message) {
+              // Parse image attachments if provided
+              let images: ImageAttachment[] = [];
+              if (request.images) {
+                try {
+                  images = JSON.parse(request.images);
+                } catch (e) {
+                  console.error('[ERROR] Failed to parse image attachments:', e);
+                }
+              }
+
+              // Process message through SDK
+              await adapter.processUserMessage(request.message, request.id, images);
+            }
+            break;
+
+          case 'clear_history':
+            // TODO Phase 6: Implement conversation management with SDK session support
+            console.log(JSON.stringify({
+              type: 'done',
+              id: request.id,
+              timestamp: Date.now()
+            }));
+            break;
+
+          case 'new_conversation':
+            // TODO Phase 6: Implement conversation management with SDK session support
+            console.log(JSON.stringify({
+              type: 'done',
+              id: request.id,
+              timestamp: Date.now()
+            }));
+            break;
+
+          case 'load_conversation':
+            // TODO Phase 6: Implement conversation management with SDK session support
+            console.log(JSON.stringify({
+              type: 'done',
+              id: request.id,
+              timestamp: Date.now()
+            }));
+            break;
+
+          default:
+            throw new Error(`Unknown request kind: ${(request as any).kind}`);
+        }
       } catch (error) {
         const errorResponse = {
           type: 'error',
