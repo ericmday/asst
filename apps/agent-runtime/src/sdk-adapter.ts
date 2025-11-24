@@ -1,6 +1,5 @@
-import { query, type SDKMessage, type SDKAssistantMessage, type SDKPartialAssistantMessage, type SDKResultMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import { query, type SDKMessage, type SDKAssistantMessage, type SDKPartialAssistantMessage, type SDKResultMessage, type SDKUserMessage, type McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk';
 import type { AppConfig } from './config.js';
-import type { Tool } from './tools/index.js';
 import { ConversationDatabase, type Conversation } from './persistence/database.js';
 import { randomUUID } from 'crypto';
 
@@ -35,16 +34,16 @@ export interface ImageAttachment {
  */
 export class SDKAdapter {
   private config: AppConfig;
-  private tools: Tool[];
+  private mcpServer: McpSdkServerConfigWithInstance;
   private currentRequestId: string = '';
   private currentSessionId?: string;  // SDK session for conversation continuity
   private currentConversationId?: string;  // Database conversation ID
   private db: ConversationDatabase;
   private currentAssistantMessage: string = '';  // Accumulate assistant response
 
-  constructor(config: AppConfig, tools: Tool[]) {
+  constructor(config: AppConfig, mcpServer: McpSdkServerConfigWithInstance) {
     this.config = config;
-    this.tools = tools;
+    this.mcpServer = mcpServer;
     this.db = new ConversationDatabase();
   }
 
@@ -147,8 +146,10 @@ export class SDKAdapter {
         options: {
           model: this.config.modelId || 'claude-sonnet-4-5-20250929',
           resume: this.currentSessionId,  // Resume previous conversation if available
-          // tools: this.convertToolsToSDKFormat(), // Phase 3: Tool conversion
-          // maxTurns: 10, // Limit agentic loop iterations
+          mcpServers: {
+            'desktop-assistant-tools': this.mcpServer  // Register MCP server with tools
+          },
+          maxTurns: 10, // Limit agentic loop iterations
         }
       });
 

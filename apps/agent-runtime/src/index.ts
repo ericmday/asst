@@ -1,7 +1,7 @@
 import { createInterface } from 'readline';
 import { SDKAdapter, type ImageAttachment } from './sdk-adapter.js';
 import { loadConfig } from './config.js';
-import { setupTools } from './tools/index.js';
+import { createSDKTools } from './sdk-tools.js';
 
 /**
  * Request interface matching the IPC protocol from Tauri shell
@@ -21,11 +21,12 @@ async function main() {
     // Load configuration
     const config = loadConfig();
 
-    // Setup tools (async to load custom tools)
-    const tools = await setupTools(config);
+    // Create SDK MCP server with all tools
+    const mcpServer = createSDKTools(config);
+    console.error('[INFO] SDK MCP server created with 11 tools');
 
     // Create SDK adapter
-    const adapter = new SDKAdapter(config, tools);
+    const adapter = new SDKAdapter(config, mcpServer);
     console.error('[INFO] SDK adapter initialized');
 
     // Setup stdio IPC

@@ -17,7 +17,8 @@
     "clipboardy": "^5.0.1",
     "dotenv": "^16.3.1",
     "glob": "^13.0.0",
-    "open": "^11.0.0"
+    "open": "^11.0.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
