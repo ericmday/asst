@@ -41,6 +41,7 @@ async fn send_message(
     state: State<'_, AppState>,
     id: String,
     message: String,
+    images: Option<String>,
 ) -> Result<(), String> {
     let agent = state.agent.lock().await;
 
@@ -50,6 +51,7 @@ async fn send_message(
                 id,
                 kind: "user_message".to_string(),
                 message: Some(message),
+                images,
             };
 
             process
@@ -71,6 +73,7 @@ async fn clear_history(state: State<'_, AppState>) -> Result<(), String> {
                 id: uuid::Uuid::new_v4().to_string(),
                 kind: "clear_history".to_string(),
                 message: None,
+                images: None,
             };
 
             process

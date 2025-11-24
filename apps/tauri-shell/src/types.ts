@@ -58,6 +58,12 @@ export interface ErrorResponse {
 
 // UI Message Types
 
+export interface ImageAttachment {
+  data: string; // base64 encoded image
+  mimeType: string; // e.g., 'image/png', 'image/jpeg'
+  name?: string;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -65,6 +71,7 @@ export interface Message {
   timestamp: number;
   isStreaming?: boolean;
   error?: string;
+  images?: ImageAttachment[];
 }
 
 export interface ToolCall {

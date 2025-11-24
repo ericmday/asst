@@ -1,35 +1,102 @@
 # Development Status
 
 **Last Updated:** November 2025
-**Current Phase:** Phase 6 - Essential Extensions (In Progress)
-**Progress:** 75%
+**Current Phase:** SDK Migration (Planning)
+**Progress:** 0% (Pre-Migration)
 
 ---
 
 ## 🎯 Current Focus
 
 ### ✅ Last Task Completed
-**Phase 6: Essential Extensions COMPLETE!**
-- ✅ Clipboard integration (read_clipboard, write_clipboard)
-- ✅ Vision capabilities (capture_screenshot, analyze_image)
-- ✅ Conversation persistence (SQLite with auto-load)
-- ✅ Custom tool scripts (load from ~/.claude/tools/)
-- ✅ All features tested and working
-- ✅ **Desktop assistant now has unique capabilities!**
+**SDK Migration Plan Created!**
+- ✅ Analyzed current custom implementation vs Claude Agent SDK
+- ✅ Created comprehensive migration plan (docs/08-sdk-migration-plan.md)
+- ✅ Identified what stays vs what changes
+- ✅ Mapped 8-phase migration strategy (8-14 hours estimated)
+- ✅ Documented risks and mitigation strategies
+- ✅ Prepared rollback plan
 
 ### ⏭️ Next Task
-**Phase 6+: UI Enhancements**
-- [ ] Image paste support in React UI
-- [ ] Conversation history UI (list/switch conversations)
-- [ ] Create example custom tools
-- [ ] Web search integration (Tavily/Brave API)
-- [ ] Enhanced file operations (move, copy, delete)
+**Begin SDK Migration - Phase 1: Setup & Preparation**
+- [ ] Install @anthropic-ai/claude-agent-sdk package
+- [ ] Create migration branch (feature/sdk-migration)
+- [ ] Create backups of critical files (agent.ts, index.ts)
+- [ ] Review existing code and document patterns
+- [ ] Read SDK documentation thoroughly
 
-**Reference:** See roadmap below for Phase 6-9 details
+**Reference:** See [docs/08-sdk-migration-plan.md](./docs/08-sdk-migration-plan.md) for detailed migration guide
 
 ---
 
 ## 📝 Recent Changes (Diff Log)
+
+### Session 12 - November 2025
+```diff
++ SDK Migration Plan Created!
++ Discovered current implementation uses raw Anthropic SDK, not Claude Agent SDK
++ Key realizations:
+  - Built custom AgentOrchestrator similar to Claude Code internals
+  - Missing SDK benefits: MCP servers, hooks, permission system, session management
+  - Can migrate without rewriting Tauri shell or React UI
+
++ Created docs/08-sdk-migration-plan.md:
+  + Comprehensive 8-phase migration strategy
+  + Architecture comparison diagrams (current vs target)
+  + Detailed task breakdown for each phase (8-14 hours total)
+  + Risk analysis with mitigation strategies
+  + Rollback plan for safety
+  + Success criteria and validation checkpoints
+  + Session tracking for progress documentation
+
++ Migration preserves:
+  + ✅ Tauri shell (window management, tray, hotkeys)
+  + ✅ React UI (components, styling, state)
+  + ✅ IPC bridge (stdio JSON protocol)
+  + ✅ Tool implementations (just need SDK wrapping)
+
++ Migration changes:
+  + ❌ Replace AgentOrchestrator with SDK query()
+  + ❌ Convert tools to SDK tool() format
+  + ❌ Remove manual conversation management
+  + ❌ Remove custom agentic loop
+  + 🔄 Adapt persistence layer to SDK hooks
+
++ Updated STATUS.md:
+  + Current phase: SDK Migration (Planning)
+  + Next task: Phase 1 setup (install SDK, create branch, backups)
+```
+
+**Summary:** Migration plan complete! Comprehensive guide created covering 8 phases with detailed tasks, risks, and validation. Ready to begin migration while preserving all existing UI and functionality. Estimated 2-3 sessions to complete.
+
+**Decisions Made:**
+- Migrate to @anthropic-ai/claude-agent-sdk for better architecture
+- Keep Tauri shell and React UI completely unchanged
+- Create SDK adapter layer to bridge SDK messages → IPC protocol
+- Use git branch for safe migration with rollback capability
+- Test incrementally after each phase
+
+**Technical Details:**
+- Migration plan: 8 phases across 2-3 sessions
+- Phases: Setup → Adapter → Tools → Integration → Testing → Persistence → Advanced → Cleanup
+- Total estimated time: 8-14 hours
+- Risk level: Medium (but well mitigated)
+- Success criteria: 12 checkpoints + 4 bonus SDK features
+
+**Benefits of Migration:**
+- MCP server support (can load standard MCP tools)
+- Built-in hook system (better observability)
+- Permission management framework
+- Session resumption capabilities
+- Cleaner, more maintainable code
+- Aligned with Claude Code ecosystem
+
+**Next Steps:**
+1. Begin Phase 1: Install SDK and create migration branch
+2. Create backups of critical files
+3. Start building SDK adapter layer
+4. Convert tools to SDK format
+5. Test thoroughly at each phase
 
 ### Session 11 - November 2025
 ```diff

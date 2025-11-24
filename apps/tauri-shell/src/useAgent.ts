@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
 import { listen } from '@tauri-apps/api/event';
-import type { AgentResponse, Message, ToolCall } from './types';
+import type { AgentResponse, Message, ToolCall, ImageAttachment } from './types';
 
 export function useAgent() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -141,8 +141,8 @@ export function useAgent() {
     };
   }, []);
 
-  const sendMessage = useCallback(async (message: string) => {
-    if (!message.trim() || isLoading) return;
+  const sendMessage = useCallback(async (message: string, images?: ImageAttachment[]) => {
+    if ((!message.trim() && (!images || images.length === 0)) || isLoading) return;
 
     const id = `msg-${Date.now()}`;
     setIsLoading(true);
@@ -155,11 +155,23 @@ export function useAgent() {
         role: 'user',
         content: message,
         timestamp: Date.now(),
+        images: images && images.length > 0 ? images : undefined,
       },
     ]);
 
     try {
-      await invoke('send_message', { id, message });
+      // Convert images to the format expected by the backend
+      const attachments = images?.map(img => ({
+        data: img.data,
+        mime_type: img.mimeType,
+        name: img.name,
+      }));
+
+      await invoke('send_message', {
+        id,
+        message,
+        images: attachments && attachments.length > 0 ? JSON.stringify(attachments) : undefined,
+      });
     } catch (error) {
       console.error('Failed to send message:', error);
       setMessages((prev) => [

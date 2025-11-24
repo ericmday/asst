@@ -8,8 +8,15 @@ export interface AgentRequest {
   kind: 'user_message' | 'clear_history' | 'load_conversation' | 'new_conversation';
   message?: string;
   conversation_id?: string;
+  images?: string; // JSON string of image attachments
   attachments?: Array<{ path: string; mime: string }>;
   metadata?: Record<string, unknown>;
+}
+
+export interface ImageAttachment {
+  data: string; // base64
+  mime_type: string;
+  name?: string;
 }
 
 export interface AgentResponse {
@@ -137,15 +144,74 @@ export class AgentOrchestrator {
 
   private async processUserMessage(request: AgentRequest): Promise<void> {
     try {
-      // Add user message to history
+      // Parse images if provided
+      let imageAttachments: ImageAttachment[] = [];
+      if (request.images) {
+        try {
+          imageAttachments = JSON.parse(request.images);
+        } catch (e) {
+          this.log('error', 'Failed to parse image attachments:', e);
+        }
+      }
+
+      // Validate image sizes (max 5MB per image in base64)
+      const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+      for (const img of imageAttachments) {
+        const sizeInBytes = img.data.length * 0.75; // base64 is ~1.33x larger than binary
+        if (sizeInBytes > MAX_IMAGE_SIZE) {
+          this.sendResponse({
+            type: 'error',
+            id: request.id,
+            error: `Image too large (${(sizeInBytes / 1024 / 1024).toFixed(1)}MB). Maximum size is 5MB. Please use a smaller image.`,
+            timestamp: Date.now(),
+          });
+          return;
+        }
+      }
+
+      // Build content array with text and images
+      const contentBlocks: Anthropic.MessageParam['content'] = [];
+
+      // Add text content if provided
+      if (request.message && request.message.trim()) {
+        contentBlocks.push({
+          type: 'text',
+          text: request.message,
+        });
+      }
+
+      // Add image content blocks
+      for (const img of imageAttachments) {
+        // Extract media type from mime_type (e.g., 'image/png' -> 'png')
+        const mediaType = img.mime_type.split('/')[1] as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+
+        contentBlocks.push({
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: img.mime_type as any,
+            data: img.data,
+          },
+        });
+      }
+
+      // Create user message with content blocks
       const userMessage: Anthropic.MessageParam = {
         role: 'user',
-        content: request.message!,
+        content: contentBlocks.length === 1 && contentBlocks[0].type === 'text'
+          ? (contentBlocks[0] as any).text // Single text block - use string format
+          : contentBlocks, // Mixed content - use array format
       };
       this.conversationHistory.push(userMessage);
 
-      // Save to database
-      this.db.addMessage(this.currentConversationId, 'user', userMessage.content);
+      // Save to database (serialize content for storage)
+      this.db.addMessage(
+        this.currentConversationId,
+        'user',
+        typeof userMessage.content === 'string'
+          ? userMessage.content
+          : JSON.stringify(userMessage.content)
+      );
 
       // Agentic loop - continue until Claude doesn't request more tools
       let continueLoop = true;
@@ -164,7 +230,9 @@ export class AgentOrchestrator {
 
         // Use non-streaming API due to streaming bug with claude-sonnet-4-5-20250929
         // Streaming API returns empty tool inputs, non-streaming works correctly
-        const finalMessage = await this.client.messages.create({
+
+        // Create API call with timeout (2 minutes for vision API which can be slow)
+        const apiCallPromise = this.client.messages.create({
           model: this.config.modelId,
           max_tokens: this.config.maxTokens,
           system: "You are a helpful AI assistant with access to tools. When you need to perform an action like reading or writing files, you MUST use the available tools by providing ALL required parameters. Always fill in the complete tool input parameters based on the user's request.",
@@ -172,7 +240,14 @@ export class AgentOrchestrator {
           ...(toolSchemas.length > 0 && {
             tools: toolSchemas,
           }),
+          timeout: 120000, // 2 minute timeout
         });
+
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('API request timed out after 2 minutes')), 120000);
+        });
+
+        const finalMessage = await Promise.race([apiCallPromise, timeoutPromise]);
 
         this.log('debug', 'Received response from API');
 
