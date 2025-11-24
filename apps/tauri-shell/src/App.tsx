@@ -1,10 +1,16 @@
 import { useState, useRef, useEffect } from 'react'
 import { X, Send, Trash2, Menu } from 'lucide-react'
+import { appWindow, LogicalSize } from '@tauri-apps/api/window'
 import { useAgent } from './useAgent'
 import { ToolResult } from './components/ToolResult'
 import { Markdown } from './components/Markdown'
 import { Navigation } from './components/Navigation'
 import type { ImageAttachment } from './types'
+
+// Window sizes
+const COMPACT_HEIGHT = 90  // Compact - just input area (no header, no frame)
+const EXPANDED_HEIGHT = 600
+const WINDOW_WIDTH = 360
 
 // Slash command definitions
 interface SlashCommand {
@@ -33,6 +39,11 @@ function App() {
     const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null
     return savedTheme || 'light'
   })
+  const [isExpanded, setIsExpanded] = useState(() => {
+    // Load expanded state from localStorage
+    const savedExpanded = localStorage.getItem('windowExpanded')
+    return savedExpanded === 'true'
+  })
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const slashMenuRef = useRef<HTMLDivElement>(null)
@@ -51,12 +62,38 @@ function App() {
     localStorage.setItem('theme', theme)
   }, [theme])
 
+  // Restore window size on mount based on expanded state
+  useEffect(() => {
+    const restoreWindowSize = async () => {
+      const height = isExpanded ? EXPANDED_HEIGHT : COMPACT_HEIGHT
+      await appWindow.setSize(new LogicalSize(WINDOW_WIDTH, height))
+    }
+    restoreWindowSize()
+  }, []) // Only run on mount
+
+  // Save expanded state to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('windowExpanded', String(isExpanded))
+  }, [isExpanded])
+
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light')
   }
 
-  const handleSend = () => {
+  const expandWindow = async () => {
+    await appWindow.setSize(new LogicalSize(WINDOW_WIDTH, EXPANDED_HEIGHT))
+    setIsExpanded(true)
+  }
+
+  const handleSend = async () => {
     if ((inputValue.trim() || pastedImages.length > 0) && !isLoading) {
+      // Expand window on first message if not already expanded
+      if (!isExpanded && messages.length === 0) {
+        console.log('[DEBUG] Expanding window...', { isExpanded, messageCount: messages.length })
+        await expandWindow()
+        console.log('[DEBUG] Window expanded')
+      }
+
       sendMessage(inputValue, pastedImages)
       setInputValue('')
       setPastedImages([])
@@ -207,24 +244,26 @@ function App() {
         onLoadMessages={loadMessages}
       />
 
-      <div className="header">
-        <button onClick={() => setShowNavigation(true)} className="hamburger-btn" title="Menu">
-          <Menu size={20} />
-        </button>
-        <div className="header-actions">
-          <span className={`status ${isAgentReady ? 'ready' : 'loading'}`}>
-            {isAgentReady ? '● Ready' : '○ Starting...'}
-          </span>
-          {messages.length > 0 && (
-            <button onClick={clearHistory} className="clear-btn">
-              <Trash2 size={16} />
-              Clear
-            </button>
-          )}
+      {isExpanded && (
+        <div className="header">
+          <button onClick={() => setShowNavigation(true)} className="hamburger-btn" title="Menu">
+            <Menu size={20} />
+          </button>
+          <div className="header-actions">
+            <span className={`status ${isAgentReady ? 'ready' : 'loading'}`}>
+              {isAgentReady ? '● Ready' : '○ Starting...'}
+            </span>
+            {messages.length > 0 && (
+              <button onClick={clearHistory} className="clear-btn">
+                <Trash2 size={16} />
+                Clear
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="messages">
+      <div className="messages" style={{ display: isExpanded ? 'flex' : 'none' }}>
         {messages.length === 0 ? (
           <div className="empty-state">
             <h2>What can I help you with?</h2>
@@ -345,14 +384,16 @@ function App() {
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            placeholder={isAgentReady ? "Type a message or paste an image..." : "Starting agent..."}
+            placeholder={isExpanded ? (isAgentReady ? "Type a message or paste an image..." : "Starting agent...") : "Assistant"}
             disabled={!isAgentReady || isLoading}
             rows={1}
           />
           <button
             onClick={handleSend}
             disabled={!isAgentReady || isLoading || (!inputValue.trim() && pastedImages.length === 0)}
+            className="send-btn"
           >
+            <span className={`status-dot ${isAgentReady ? 'ready' : 'loading'}`}></span>
             {isLoading ? 'Sending...' : (
               <>
                 <Send size={16} />

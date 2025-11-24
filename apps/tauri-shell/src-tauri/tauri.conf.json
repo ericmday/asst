@@ -27,6 +27,10 @@
       },
       "globalShortcut": {
         "all": true
+      },
+      "window": {
+        "all": false,
+        "setSize": true
       }
     },
     "bundle": {
@@ -56,11 +60,11 @@
         "title": "Desktop Assistant",
         "label": "main",
         "width": 360,
-        "height": 600,
+        "height": 90,
         "resizable": true,
         "fullscreen": false,
         "visible": false,
-        "decorations": true,
+        "decorations": false,
         "alwaysOnTop": false,
         "center": true,
         "skipTaskbar": true
