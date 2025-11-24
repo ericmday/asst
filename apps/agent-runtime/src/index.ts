@@ -8,8 +8,8 @@ async function main() {
     // Load configuration
     const config = loadConfig();
 
-    // Setup tools
-    const tools = setupTools(config);
+    // Setup tools (async to load custom tools)
+    const tools = await setupTools(config);
 
     // Create agent orchestrator
     const orchestrator = new AgentOrchestrator(config, tools);

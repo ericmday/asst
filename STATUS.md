@@ -1,39 +1,109 @@
 # Development Status
 
-**Last Updated:** 2025-11-24
-**Current Phase:** Phase 4 - UI Polish (In Progress)
-**Progress:** 95%
+**Last Updated:** November 2025
+**Current Phase:** Phase 6 - Essential Extensions (In Progress)
+**Progress:** 75%
 
 ---
 
 ## 🎯 Current Focus
 
 ### ✅ Last Task Completed
-**Phase 4: Dark/Light Theme Toggle & UI Polish Complete!**
-- ✅ Implemented full dark/light theme system with CSS variables
-- ✅ Added theme toggle button (🌙/☀️) in header
-- ✅ Theme preference persists via localStorage
-- ✅ Polished scrolling with custom scrollbar styling
-- ✅ Added smooth message fade-in animations
-- ✅ Cleaned up test files
-- ✅ **Complete theme system with seamless switching!**
+**Phase 6: Essential Extensions COMPLETE!**
+- ✅ Clipboard integration (read_clipboard, write_clipboard)
+- ✅ Vision capabilities (capture_screenshot, analyze_image)
+- ✅ Conversation persistence (SQLite with auto-load)
+- ✅ Custom tool scripts (load from ~/.claude/tools/)
+- ✅ All features tested and working
+- ✅ **Desktop assistant now has unique capabilities!**
 
 ### ⏭️ Next Task
-**Phase 4: Final Polish & Settings**
-- [x] Add textarea for multi-line input (instead of single-line input)
-- [x] Improve keyboard shortcuts (Shift+Enter for new line)
-- [x] **Fix excessive newline spacing in markdown**
-- [x] **Implement dark/light theme toggle**
-- [x] **Polish scrolling and layout behavior**
-- [x] **Clean up test files**
-- [ ] Add settings panel (optional - can be Phase 5)
-- [ ] Ready for Phase 5: Production
+**Phase 6+: UI Enhancements**
+- [ ] Image paste support in React UI
+- [ ] Conversation history UI (list/switch conversations)
+- [ ] Create example custom tools
+- [ ] Web search integration (Tavily/Brave API)
+- [ ] Enhanced file operations (move, copy, delete)
 
-**Reference:** See [docs/05-web-ui.md](./docs/05-web-ui.md)
+**Reference:** See roadmap below for Phase 6-9 details
 
 ---
 
 ## 📝 Recent Changes (Diff Log)
+
+### Session 11 - November 2025
+```diff
++ Phase 6 COMPLETE - Essential Extensions Implemented!
++ Defined Phase 6-9 roadmap with priorities based on Impact/Complexity ratio
++ Implemented 4 major features:
+
+  1. Clipboard Integration ✅
+  + Installed clipboardy package
+  + Created apps/agent-runtime/src/tools/clipboard.ts
+  + Added read_clipboard() and write_clipboard() tools
+  + Registered in tool index
+
+  2. Vision Capabilities ✅
+  + Created apps/agent-runtime/src/tools/vision.ts
+  + Added capture_screenshot() - uses macOS screencapture command
+  + Added analyze_image(path) - reads and encodes images as base64
+  + Updated agent.ts to support vision messages (image content blocks)
+  + Handles base64 image data in tool results
+
+  3. Conversation Persistence ✅
+  + Installed better-sqlite3 (+ fixed native binding build issues)
+  + Created apps/agent-runtime/src/persistence/database.ts
+  + Implemented SQLite schema: conversations + messages tables
+  + Database stored at ~/.claude/history.db
+  + Updated agent.ts with ConversationDatabase integration
+  + Auto-loads most recent conversation on startup
+  + Saves all messages (user, assistant, tool results) to DB
+  + Added request handlers: new_conversation, load_conversation, clear_history
+
+  4. Custom Tool Scripts ✅
+  + Created apps/agent-runtime/src/tools/custom.ts
+  + Loads .js/.mjs files from ~/.claude/tools/
+  + Validates tool definitions (name, description, input_schema, execute)
+  + Auto-registers user-defined tools on startup
+  + Created ~/.claude/tools/ directory structure
+
++ Updated tools/index.ts to load custom tools (made setupTools async)
++ Updated apps/agent-runtime/src/index.ts to await setupTools
++ Fixed better-sqlite3 native bindings (rebuilt in pnpm node_modules)
++ Tested successfully:
+  + ✅ Clipboard read/write working
+  + ✅ Screenshot capture working (after granting Screen Recording permission)
+  + ✅ Conversation persistence working
+  + ✅ Custom tool loader working (0 tools loaded, empty directory)
+```
+
+**Summary:** Phase 6 major milestone! Implemented clipboard, vision (screenshots + image analysis), conversation persistence, and custom tool loading. All core prototype features now working. Desktop assistant now has unique capabilities beyond web Claude.
+
+**Decisions Made:**
+- Skip Phase 5 (Production) for now - focus on prototype features first
+- Use better-sqlite3 for local persistence (SQLite in ~/.claude/history.db)
+- Store custom tools in ~/.claude/tools/ as JavaScript modules
+- Vision API integration via base64-encoded images in tool results
+- Auto-load most recent conversation on startup
+
+**Technical Details:**
+- Clipboard: clipboardy v5.0.1 (cross-platform)
+- Vision: macOS screencapture + Anthropic Vision API with image content blocks
+- Persistence: better-sqlite3 v12.4.6 (had to manually rebuild native bindings)
+- Database schema: 2 tables (conversations, messages) with proper indexes
+- Custom tools: Dynamic import from file:// URLs, full validation
+- All tools registered and working with Claude Sonnet 4.5
+
+**Known Issues:**
+- better-sqlite3 native bindings required manual rebuild (pnpm workspace issue)
+- Screenshot requires macOS Screen Recording permission for Terminal/IDE
+- Image paste into UI not yet implemented (next feature to add)
+
+**Next Steps:**
+- Add image paste support in React UI
+- Test conversation persistence across app restarts
+- Create example custom tools
+- Consider adding web search capability
 
 ### Session 10 - 2025-11-24
 ```diff
@@ -503,12 +573,42 @@
 - [x] Dark/light theme
 - [x] **Milestone:** Production-ready UI
 
-### Phase 5: Production
+### Phase 5: Production (Deferred)
 - [ ] API key management (keychain)
 - [ ] Settings panel
 - [ ] Permission system
 - [ ] Build & distribution
 - [ ] **Milestone:** Installable app
+
+### Phase 6: Essential Extensions 🚧 In Progress
+- [ ] Clipboard integration (read/write)
+- [ ] Vision capabilities (screenshots, image analysis)
+- [ ] Conversation persistence (SQLite)
+- [ ] Custom tool scripts (user-defined tools)
+- [ ] Enhanced file operations (move, copy, delete)
+- [ ] **Milestone:** More capable than web Claude
+
+### Phase 7: Visual Intelligence
+- [ ] Screenshot capture (full/window/region)
+- [ ] Image analysis (Vision API)
+- [ ] OCR workflows
+- [ ] Visual debugging
+- [ ] **Milestone:** Assistant can see
+
+### Phase 8: Developer Workflows
+- [ ] Git operations (status, diff, commit, branch, merge)
+- [ ] Code-aware editing (AST parsing, refactoring)
+- [ ] Package managers (npm, cargo, pip)
+- [ ] Better terminal integration
+- [ ] **Milestone:** Dev workflow companion
+
+### Phase 9: Advanced & Custom
+- [ ] ComfyUI integration
+- [ ] Plugin system (custom tool marketplace)
+- [ ] Database tools (SQLite, Postgres, MySQL)
+- [ ] Saved workflows/prompts
+- [ ] Multi-agent coordination
+- [ ] **Milestone:** Customizable for any workflow
 
 ---
 
@@ -602,13 +702,16 @@ pnpm test                     # Run tests
 
 ### Where We Left Off
 - ✅ Phase 4 Complete - UI Polish fully complete!
-- ✅ Dark/light theme system with CSS variables and localStorage persistence
-- ✅ Beautiful custom scrollbar that adapts to theme
-- ✅ Smooth message animations and transitions
-- ✅ Test files cleaned up, codebase organized
-- ✅ Production-ready UI with professional appearance
-- 🎯 Ready for Phase 5: Production Features
-- Next: Implement API key management with OS keychain and settings panel
+- ✅ Phase 6-9 Roadmap defined with clear priorities
+- ✅ Strategic pivot: Focus on prototype features over production packaging
+- 🚧 Phase 6 In Progress - Essential Extensions
+- 📋 Implementing: Clipboard, Vision, Persistence, Custom Tools
+- Next Steps:
+  1. Install clipboardy and create clipboard tools
+  2. Create vision tools for screenshots and image analysis
+  3. Set up SQLite persistence layer
+  4. Build custom tool script loader
+  5. Test all new features end-to-end
 
 ---
 

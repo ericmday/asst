@@ -1,11 +1,13 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { AppConfig } from './config.js';
 import type { Tool } from './tools/index.js';
+import { ConversationDatabase } from './persistence/database.js';
 
 export interface AgentRequest {
   id: string;
-  kind: 'user_message' | 'clear_history';
+  kind: 'user_message' | 'clear_history' | 'load_conversation' | 'new_conversation';
   message?: string;
+  conversation_id?: string;
   attachments?: Array<{ path: string; mime: string }>;
   metadata?: Record<string, unknown>;
 }
@@ -24,6 +26,8 @@ export class AgentOrchestrator {
   private config: AppConfig;
   private tools: Tool[];
   private conversationHistory: Anthropic.MessageParam[] = [];
+  private db: ConversationDatabase;
+  private currentConversationId: string;
 
   constructor(config: AppConfig, tools: Tool[]) {
     this.config = config;
@@ -31,18 +35,70 @@ export class AgentOrchestrator {
     this.client = new Anthropic({
       apiKey: config.anthropicApiKey,
     });
+    this.db = new ConversationDatabase();
+
+    // Create or load default conversation
+    this.currentConversationId = this.getOrCreateDefaultConversation();
+    this.loadConversationHistory(this.currentConversationId);
   }
 
   async initialize(): Promise<void> {
     this.log('info', 'Agent orchestrator initialized');
+    this.log('info', `Loaded conversation: ${this.currentConversationId}`);
+  }
+
+  private getOrCreateDefaultConversation(): string {
+    const conversations = this.db.getAllConversations();
+    if (conversations.length > 0) {
+      // Return most recent conversation
+      return conversations[0].id;
+    } else {
+      // Create new default conversation
+      const conv = this.db.createConversation(`conv_${Date.now()}`, 'New Conversation');
+      return conv.id;
+    }
+  }
+
+  private loadConversationHistory(conversationId: string): void {
+    const history = this.db.getMessageHistory(conversationId);
+    this.conversationHistory = history;
+    this.log('info', `Loaded ${history.length} messages from conversation ${conversationId}`);
   }
 
   async handleRequest(request: AgentRequest): Promise<void> {
     if (request.kind === 'clear_history') {
       this.conversationHistory = [];
+      this.db.clearMessages(this.currentConversationId);
       this.sendResponse({
         type: 'done',
         id: request.id,
+        timestamp: Date.now(),
+      });
+      return;
+    }
+
+    if (request.kind === 'new_conversation') {
+      const title = request.metadata?.title as string || 'New Conversation';
+      const conv = this.db.createConversation(`conv_${Date.now()}`, title);
+      this.currentConversationId = conv.id;
+      this.conversationHistory = [];
+      this.log('info', `Created new conversation: ${conv.id}`);
+      this.sendResponse({
+        type: 'done',
+        id: request.id,
+        data: { conversation_id: conv.id },
+        timestamp: Date.now(),
+      });
+      return;
+    }
+
+    if (request.kind === 'load_conversation' && request.conversation_id) {
+      this.currentConversationId = request.conversation_id;
+      this.loadConversationHistory(request.conversation_id);
+      this.sendResponse({
+        type: 'done',
+        id: request.id,
+        data: { conversation_id: request.conversation_id, message_count: this.conversationHistory.length },
         timestamp: Date.now(),
       });
       return;
@@ -82,10 +138,14 @@ export class AgentOrchestrator {
   private async processUserMessage(request: AgentRequest): Promise<void> {
     try {
       // Add user message to history
-      this.conversationHistory.push({
+      const userMessage: Anthropic.MessageParam = {
         role: 'user',
         content: request.message!,
-      });
+      };
+      this.conversationHistory.push(userMessage);
+
+      // Save to database
+      this.db.addMessage(this.currentConversationId, 'user', userMessage.content);
 
       // Agentic loop - continue until Claude doesn't request more tools
       let continueLoop = true;
@@ -139,10 +199,14 @@ export class AgentOrchestrator {
         }
 
         // Add assistant message to history
-        this.conversationHistory.push({
+        const assistantMessage: Anthropic.MessageParam = {
           role: 'assistant',
           content: finalMessage.content,
-        });
+        };
+        this.conversationHistory.push(assistantMessage);
+
+        // Save to database
+        this.db.addMessage(this.currentConversationId, 'assistant', assistantMessage.content);
 
         // Check if we need to execute tools
         if (toolUses.length > 0) {
@@ -174,10 +238,34 @@ export class AgentOrchestrator {
               this.log('debug', `Executing tool: ${toolUse.name}`, toolUse.input);
               const result = await tool.execute(toolUse.input);
 
+              // Check if result contains an image (for vision tools)
+              let toolResultContent: any;
+              if (result && typeof result === 'object' && 'image' in result) {
+                // Vision tool result - format as image content block
+                const imageData = result as { image: string; format: string; [key: string]: any };
+                toolResultContent = [
+                  {
+                    type: 'image',
+                    source: {
+                      type: 'base64',
+                      media_type: `image/${imageData.format}`,
+                      data: imageData.image,
+                    },
+                  },
+                  {
+                    type: 'text',
+                    text: `Image captured (${imageData.format}, ${imageData.size} bytes)`,
+                  },
+                ];
+              } else {
+                // Regular tool result - convert to string
+                toolResultContent = typeof result === 'string' ? result : JSON.stringify(result);
+              }
+
               toolResults.push({
                 type: 'tool_result',
                 tool_use_id: toolUse.id,
-                content: typeof result === 'string' ? result : JSON.stringify(result),
+                content: toolResultContent,
               });
 
               // Send tool_result event to frontend
@@ -219,10 +307,14 @@ export class AgentOrchestrator {
           }
 
           // Add tool results to conversation history as user message
-          this.conversationHistory.push({
+          const toolResultMessage: Anthropic.MessageParam = {
             role: 'user',
             content: toolResults,
-          });
+          };
+          this.conversationHistory.push(toolResultMessage);
+
+          // Save to database
+          this.db.addMessage(this.currentConversationId, 'user', toolResultMessage.content);
 
           // Continue the loop to let Claude process tool results
           continueLoop = true;
