@@ -1,12 +1,30 @@
 import { useState, useRef, useEffect } from 'react'
+import { Moon, Sun, X, Send, Trash2 } from 'lucide-react'
 import { useAgent } from './useAgent'
 import { ToolResult } from './components/ToolResult'
 import { Markdown } from './components/Markdown'
 import type { ImageAttachment } from './types'
 
+// Slash command definitions
+interface SlashCommand {
+  command: string
+  description: string
+  example?: string
+}
+
+const SLASH_COMMANDS: SlashCommand[] = [
+  { command: '/help', description: 'Show available commands' },
+  { command: '/reset', description: 'Reset conversation and start fresh' },
+  { command: '/clear', description: 'Clear conversation history (alias for /reset)' },
+  { command: '/session', description: 'Show current session information' },
+  { command: '/ultrathink', description: 'Enable extended thinking mode', example: '/ultrathink [your prompt]' },
+]
+
 function App() {
   const [inputValue, setInputValue] = useState('')
   const [pastedImages, setPastedImages] = useState<ImageAttachment[]>([])
+  const [showSlashMenu, setShowSlashMenu] = useState(false)
+  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0)
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     // Load theme from localStorage or default to light
     const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null
@@ -14,7 +32,15 @@ function App() {
   })
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const slashMenuRef = useRef<HTMLDivElement>(null)
   const { messages, toolCalls, isAgentReady, isLoading, sendMessage, clearHistory } = useAgent()
+
+  // Filter slash commands based on input
+  const filteredCommands = inputValue.startsWith('/')
+    ? SLASH_COMMANDS.filter(cmd =>
+        cmd.command.toLowerCase().startsWith(inputValue.toLowerCase().split(' ')[0])
+      )
+    : []
 
   // Apply theme to document and save to localStorage
   useEffect(() => {
@@ -71,7 +97,43 @@ function App() {
     setPastedImages(prev => prev.filter((_, i) => i !== index))
   }
 
+  // Handle command selection
+  const selectCommand = (command: string) => {
+    setInputValue(command + ' ')
+    setShowSlashMenu(false)
+    setSelectedCommandIndex(0)
+    textareaRef.current?.focus()
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Handle slash menu navigation
+    if (showSlashMenu && filteredCommands.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setSelectedCommandIndex(prev =>
+          prev < filteredCommands.length - 1 ? prev + 1 : 0
+        )
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setSelectedCommandIndex(prev =>
+          prev > 0 ? prev - 1 : filteredCommands.length - 1
+        )
+        return
+      }
+      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
+        e.preventDefault()
+        selectCommand(filteredCommands[selectedCommandIndex].command)
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setShowSlashMenu(false)
+        return
+      }
+    }
+
     // Enter without shift sends the message
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -81,7 +143,16 @@ function App() {
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInputValue(e.target.value)
+    const value = e.target.value
+    setInputValue(value)
+
+    // Show slash menu when typing slash command
+    if (value.startsWith('/') && !value.includes(' ')) {
+      setShowSlashMenu(true)
+      setSelectedCommandIndex(0)
+    } else {
+      setShowSlashMenu(false)
+    }
 
     // Auto-resize textarea
     const textarea = e.target
@@ -119,10 +190,11 @@ function App() {
             {isAgentReady ? '● Ready' : '○ Starting...'}
           </span>
           <button onClick={toggleTheme} className="theme-toggle" title="Toggle theme">
-            {theme === 'light' ? '🌙' : '☀️'}
+            {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
           </button>
           {messages.length > 0 && (
             <button onClick={clearHistory} className="clear-btn">
+              <Trash2 size={16} />
               Clear
             </button>
           )}
@@ -188,6 +260,17 @@ function App() {
                 )}
               </div>
             ))}
+            {/* Show "Thinking..." indicator when loading and no assistant response yet */}
+            {isLoading && messages.length > 0 && messages[messages.length - 1].role === 'user' && (
+              <div className="message assistant thinking">
+                <div className="message-content">
+                  <span className="thinking-text">Thinking</span>
+                  <span className="thinking-dots">
+                    <span>.</span><span>.</span><span>.</span>
+                  </span>
+                </div>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </>
         )}
@@ -207,8 +290,27 @@ function App() {
                   onClick={() => removeImage(index)}
                   title="Remove image"
                 >
-                  ×
+                  <X size={16} />
                 </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {/* Slash command autocomplete menu */}
+        {showSlashMenu && filteredCommands.length > 0 && (
+          <div className="slash-menu" ref={slashMenuRef}>
+            {filteredCommands.map((cmd, index) => (
+              <div
+                key={cmd.command}
+                className={`slash-menu-item ${index === selectedCommandIndex ? 'selected' : ''}`}
+                onClick={() => selectCommand(cmd.command)}
+                onMouseEnter={() => setSelectedCommandIndex(index)}
+              >
+                <div className="slash-command-name">{cmd.command}</div>
+                <div className="slash-command-desc">{cmd.description}</div>
+                {cmd.example && (
+                  <div className="slash-command-example">{cmd.example}</div>
+                )}
               </div>
             ))}
           </div>
@@ -228,7 +330,12 @@ function App() {
             onClick={handleSend}
             disabled={!isAgentReady || isLoading || (!inputValue.trim() && pastedImages.length === 0)}
           >
-            {isLoading ? 'Sending...' : 'Send'}
+            {isLoading ? 'Sending...' : (
+              <>
+                <Send size={16} />
+                Send
+              </>
+            )}
           </button>
         </div>
       </div>

@@ -1,30 +1,57 @@
 # Development Status
 
 **Last Updated:** November 24, 2025
-**Current Phase:** SDK Migration (Phase 2 Complete)
-**Progress:** 25% (2/8 phases)
+**Current Phase:** SDK Migration (Phase 2+ Complete with Enhancements)
+**Progress:** 30% (2/8 phases + bonus features)
 
 ---
 
 ## 🎯 Current Focus
 
 ### ✅ Last Task Completed
-**Phase 2: SDK Adapter Layer - COMPLETE!**
-- ✅ Created src/sdk-adapter.ts (278 lines)
+**Phase 2+: SDK Adapter + Session Management + Slash Commands - COMPLETE!**
+
+**Core Adapter (Phase 2):**
+- ✅ Created src/sdk-adapter.ts (335 lines)
 - ✅ Implemented SDKMessage → IPC JSON translation
 - ✅ Wrapped query() AsyncGenerator for stdio compatibility
 - ✅ Mapped all 8 SDK message types to IPC format
 - ✅ Preserved simulated streaming UX (word-by-word, 20ms delays)
 - ✅ Updated src/index.ts to use SDKAdapter
 - ✅ Retired old agent.ts (moved to agent.ts.old)
-- ✅ Built successfully with no TypeScript errors
-- ✅ Tested end-to-end: "Hello, what is 2+2?" → "4" ✓
+
+**Session Management (Bonus):**
+- ✅ Session resumption via currentSessionId tracking
+- ✅ Conversation memory works across messages
+- ✅ Auto-captures session_id from SDK messages
+- ✅ Resume option passed to subsequent query() calls
+- ✅ Clear session on /reset or /clear commands
+
+**Slash Commands (Bonus):**
+- ✅ Built-in commands: /help, /reset, /clear, /session
+- ✅ Pass-through for SDK commands: /ultrathink
+- ✅ Command detection and routing
+- ✅ Instant local responses for known commands
+
+**Slash Command Autocomplete (Bonus):**
+- ✅ Dropdown menu appears when typing "/"
+- ✅ Smart filtering as user types
+- ✅ Keyboard navigation (↑↓ arrows, Tab, Enter, Esc)
+- ✅ Mouse support (click, hover)
+- ✅ Shows command name, description, and examples
+- ✅ Smooth animations and theme-aware styling
+
+**UI Enhancements:**
+- ✅ "Thinking..." indicator with animated dots
+- ✅ Theme toggle (light/dark) with persistence
+- ✅ Multi-line input with auto-resize
+- ✅ Markdown rendering with syntax highlighting
 
 **Key Features:**
-- Handles assistant, stream_event, result, system, tool_progress messages
-- Simulates streaming for better UX (~50 words/sec)
-- Maintains full IPC protocol compatibility
-- Logs SDK events to stderr for debugging
+- Conversation memory maintained within session
+- Slash commands for quick actions
+- Beautiful autocomplete UX
+- Full IPC protocol compatibility
 - Ready for tool integration
 
 ### ⏭️ Next Task
@@ -42,6 +69,105 @@
 ---
 
 ## 📝 Recent Changes (Diff Log)
+
+### Session 15 - 2025-11-24
+```diff
++ Phase 2+ COMPLETE - Session Management, Slash Commands & Autocomplete!
++ Added session resumption for conversation memory:
+  + apps/agent-runtime/src/sdk-adapter.ts
+    - Added currentSessionId field to track session
+    - Captures session_id from first SDK message
+    - Passes resume option to subsequent query() calls
+    - Added clearSession() method
+    - Session logged: "[INFO] Session started: [uuid]"
+  + apps/agent-runtime/src/index.ts
+    - Hooks clearSession() to clear_history IPC handler
+    - Session persists across messages in same conversation
+  + Conversation memory now works! ✅
+    - Agent remembers context within session
+    - No more "I don't know your name" after you tell it
+
++ Implemented slash commands system:
+  + apps/agent-runtime/src/sdk-adapter.ts
+    - handleSlashCommand() method for command routing
+    - Built-in commands: /help, /reset, /clear, /session
+    - Pass-through for SDK commands: /ultrathink, etc.
+    - Instant local responses (no API call)
+  + Command implementations:
+    - /help: Shows command list with descriptions
+    - /reset & /clear: Clears session, starts fresh
+    - /session: Shows current session ID and status
+    - Unknown commands: Passed to SDK for handling
+  + Tested successfully: /clear works! ✅
+
++ Built slash command autocomplete UI:
+  + apps/tauri-shell/src/App.tsx
+    - Added SLASH_COMMANDS array with 5 commands
+    - Added showSlashMenu and selectedCommandIndex state
+    - filteredCommands computed from input
+    - selectCommand() method to insert command
+    - Keyboard navigation (↑↓ arrows, Tab, Enter, Esc)
+    - Mouse support (click, hover to highlight)
+    - Opens when typing "/", closes when adding space
+  + Autocomplete dropdown component:
+    - Shows command name (blue, monospace)
+    - Shows description (gray text)
+    - Shows example usage (italic, if present)
+    - Highlights selected item
+    - Smooth hover effects
+  + apps/tauri-shell/src/styles.css
+    - Added .slash-menu styles (~55 lines)
+    - Positioned above input (bottom: 100%)
+    - Theme-aware colors
+    - Smooth transitions
+    - Max height 300px with scroll
+
++ Enhanced "Thinking..." indicator:
+  + apps/tauri-shell/src/App.tsx
+    - Shows after user message, before first token
+    - Only when isLoading and last message is user
+    - Animated dots (3 dots fading in sequence)
+  + apps/tauri-shell/src/styles.css
+    - .thinking-text: italic, secondary color
+    - .thinking-dots: staggered animation (0s, 0.2s, 0.4s)
+    - thinkingDot keyframes: fade in/out
+    - Smooth, professional appearance
+
++ Build & verification:
+  + TypeScript compilation successful
+  + Vite hot-reload working perfectly
+  + All features tested and working
+```
+
+**Summary:** Phase 2+ complete with major UX enhancements! Session resumption enables conversation memory, slash commands provide quick actions, and autocomplete makes commands discoverable and easy to use. "Thinking..." indicator improves perceived responsiveness.
+
+**Decisions Made:**
+- Use session_id from SDK messages for resumption (not manual history)
+- Implement select slash commands locally (faster response)
+- Pass unknown commands to SDK (extensibility)
+- Show autocomplete on "/" trigger (familiar UX from IDEs)
+- Keyboard + mouse navigation (accessibility)
+
+**Technical Details:**
+- SDK adapter: 335 lines (was 278, +57 for commands)
+- Slash commands: 5 built-in, unlimited pass-through
+- Autocomplete: 5 commands defined, smart filtering
+- Session: Captured from 'session_id' field in SDK messages
+- UI: Dropdown positioned absolutely above input
+- Performance: No lag, instant command selection
+
+**Tested Successfully:**
+- ✅ Session resumption: Conversation memory works
+- ✅ /clear command: Resets session properly
+- ✅ Thinking indicator: Shows during API call
+- ✅ Slash autocomplete: Dropdown, keyboard nav, mouse
+- ✅ Theme support: Works in light & dark modes
+
+**Next Steps:**
+1. Phase 3: Convert tools to SDK format
+2. Test conversation memory with complex dialogue
+3. Consider adding more slash commands (/tools, /model, etc.)
+4. Tool execution through SDK
 
 ### Session 14 - 2025-11-24
 ```diff

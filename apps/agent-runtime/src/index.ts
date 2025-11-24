@@ -60,7 +60,8 @@ async function main() {
             break;
 
           case 'clear_history':
-            // TODO Phase 6: Implement conversation management with SDK session support
+            // Clear session to reset conversation
+            adapter.clearSession();
             console.log(JSON.stringify({
               type: 'done',
               id: request.id,

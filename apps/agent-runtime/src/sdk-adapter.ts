@@ -27,16 +27,27 @@ export interface ImageAttachment {
  * - Wraps SDK query() AsyncGenerator for stdio compatibility
  * - Converts SDKMessage types to IPC AgentResponse format
  * - Simulates streaming word-by-word for better UX
+ * - Maintains conversation history via session resumption
+ * - Supports slash commands for special operations
  * - Maintains compatibility with existing Tauri shell and React UI
  */
 export class SDKAdapter {
   private config: AppConfig;
   private tools: Tool[];
   private currentRequestId: string = '';
+  private currentSessionId?: string;  // Track session for conversation continuity
 
   constructor(config: AppConfig, tools: Tool[]) {
     this.config = config;
     this.tools = tools;
+  }
+
+  /**
+   * Clear the current session (reset conversation)
+   */
+  clearSession(): void {
+    this.currentSessionId = undefined;
+    this.log('info', 'Session cleared - starting fresh conversation');
   }
 
   /**
@@ -54,6 +65,13 @@ export class SDKAdapter {
     this.currentRequestId = requestId;
 
     try {
+      // Check for slash commands
+      if (message.trim().startsWith('/')) {
+        const handled = await this.handleSlashCommand(message.trim(), requestId);
+        if (handled) return;
+        // If not handled, continue processing as normal message
+      }
+
       // Build prompt with text and images
       let prompt = message;
 
@@ -65,6 +83,7 @@ export class SDKAdapter {
         prompt,
         options: {
           model: this.config.modelId || 'claude-sonnet-4-5-20250929',
+          resume: this.currentSessionId,  // Resume previous conversation if available
           // tools: this.convertToolsToSDKFormat(), // Phase 3: Tool conversion
           // maxTurns: 10, // Limit agentic loop iterations
         }
@@ -72,11 +91,95 @@ export class SDKAdapter {
 
       // Stream SDK messages and convert to IPC format
       for await (const sdkMessage of q) {
+        // Capture session ID from first message for conversation continuity
+        if (!this.currentSessionId && 'session_id' in sdkMessage) {
+          this.currentSessionId = sdkMessage.session_id;
+          this.log('info', `Session started: ${this.currentSessionId}`);
+        }
+
         await this.handleSDKMessage(sdkMessage);
       }
 
     } catch (error) {
       this.sendError(error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+
+  /**
+   * Handle slash commands like /reset, /help, /ultrathink, etc.
+   *
+   * @returns true if the command was handled, false to continue normal processing
+   */
+  private async handleSlashCommand(message: string, requestId: string): Promise<boolean> {
+    const parts = message.split(/\s+/);
+    const command = parts[0].toLowerCase();
+    const args = parts.slice(1);
+
+    switch (command) {
+      case '/reset':
+      case '/clear':
+        this.clearSession();
+        this.sendResponse({
+          type: 'token',
+          id: requestId,
+          token: '✅ Conversation reset. Starting fresh!',
+          timestamp: Date.now(),
+        });
+        this.sendResponse({
+          type: 'done',
+          id: requestId,
+          timestamp: Date.now(),
+        });
+        return true;
+
+      case '/help':
+        const helpText = `
+**Available Commands:**
+
+• \`/reset\` or \`/clear\` - Reset conversation and start fresh
+• \`/help\` - Show this help message
+• \`/session\` - Show current session info
+• \`/ultrathink\` - Enable extended thinking mode (pass to SDK)
+
+**Tip:** Regular slash commands like \`/ultrathink\` are passed directly to the Claude SDK.
+        `.trim();
+
+        this.sendResponse({
+          type: 'token',
+          id: requestId,
+          token: helpText,
+          timestamp: Date.now(),
+        });
+        this.sendResponse({
+          type: 'done',
+          id: requestId,
+          timestamp: Date.now(),
+        });
+        return true;
+
+      case '/session':
+        const sessionInfo = this.currentSessionId
+          ? `📋 **Current Session:** \`${this.currentSessionId}\`\n\nConversation history is being maintained.`
+          : `📋 **No Active Session**\n\nNext message will start a new conversation.`;
+
+        this.sendResponse({
+          type: 'token',
+          id: requestId,
+          token: sessionInfo,
+          timestamp: Date.now(),
+        });
+        this.sendResponse({
+          type: 'done',
+          id: requestId,
+          timestamp: Date.now(),
+        });
+        return true;
+
+      default:
+        // Unknown slash command - pass through to SDK
+        // Commands like /ultrathink will be handled by the SDK
+        this.log('info', `Passing slash command to SDK: ${command}`);
+        return false;
     }
   }
 
