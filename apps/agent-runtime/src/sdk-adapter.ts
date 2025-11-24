@@ -1,6 +1,8 @@
 import { query, type SDKMessage, type SDKAssistantMessage, type SDKPartialAssistantMessage, type SDKResultMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { AppConfig } from './config.js';
 import type { Tool } from './tools/index.js';
+import { ConversationDatabase, type Conversation } from './persistence/database.js';
+import { randomUUID } from 'crypto';
 
 /**
  * IPC Response types that match the protocol expected by Tauri shell
@@ -35,11 +37,60 @@ export class SDKAdapter {
   private config: AppConfig;
   private tools: Tool[];
   private currentRequestId: string = '';
-  private currentSessionId?: string;  // Track session for conversation continuity
+  private currentSessionId?: string;  // SDK session for conversation continuity
+  private currentConversationId?: string;  // Database conversation ID
+  private db: ConversationDatabase;
+  private currentAssistantMessage: string = '';  // Accumulate assistant response
 
   constructor(config: AppConfig, tools: Tool[]) {
     this.config = config;
     this.tools = tools;
+    this.db = new ConversationDatabase();
+  }
+
+  /**
+   * Create a new conversation
+   */
+  createConversation(title: string = 'New Chat'): Conversation {
+    const id = randomUUID();
+    const conversation = this.db.createConversation(id, title);
+    this.currentConversationId = id;
+    this.currentSessionId = undefined;  // Clear SDK session
+    this.log('info', `Created new conversation: ${id}`);
+    return conversation;
+  }
+
+  /**
+   * Load an existing conversation
+   */
+  loadConversation(conversationId: string): Conversation | null {
+    const conversation = this.db.getConversation(conversationId);
+    if (conversation) {
+      this.currentConversationId = conversationId;
+      this.currentSessionId = undefined;  // Clear SDK session - will be rebuilt from history
+      this.log('info', `Loaded conversation: ${conversationId}`);
+      return conversation;
+    }
+    return null;
+  }
+
+  /**
+   * Get all conversations
+   */
+  getAllConversations(): Conversation[] {
+    return this.db.getAllConversations();
+  }
+
+  /**
+   * Delete a conversation
+   */
+  deleteConversation(conversationId: string): void {
+    this.db.deleteConversation(conversationId);
+    if (this.currentConversationId === conversationId) {
+      this.currentConversationId = undefined;
+      this.currentSessionId = undefined;
+    }
+    this.log('info', `Deleted conversation: ${conversationId}`);
   }
 
   /**
@@ -47,6 +98,7 @@ export class SDKAdapter {
    */
   clearSession(): void {
     this.currentSessionId = undefined;
+    this.currentConversationId = undefined;
     this.log('info', 'Session cleared - starting fresh conversation');
   }
 
@@ -63,6 +115,7 @@ export class SDKAdapter {
     images?: ImageAttachment[]
   ): Promise<void> {
     this.currentRequestId = requestId;
+    this.currentAssistantMessage = '';  // Reset assistant message accumulator
 
     try {
       // Check for slash commands
@@ -70,6 +123,16 @@ export class SDKAdapter {
         const handled = await this.handleSlashCommand(message.trim(), requestId);
         if (handled) return;
         // If not handled, continue processing as normal message
+      }
+
+      // Ensure we have a conversation
+      if (!this.currentConversationId) {
+        this.createConversation();
+      }
+
+      // Save user message to database
+      if (this.currentConversationId) {
+        this.db.addMessage(this.currentConversationId, 'user', message);
       }
 
       // Build prompt with text and images
@@ -98,6 +161,18 @@ export class SDKAdapter {
         }
 
         await this.handleSDKMessage(sdkMessage);
+      }
+
+      // Save assistant's complete response to database
+      if (this.currentConversationId && this.currentAssistantMessage) {
+        this.db.addMessage(this.currentConversationId, 'assistant', this.currentAssistantMessage);
+
+        // Auto-generate title from first user message if still "New Chat"
+        const conversation = this.db.getConversation(this.currentConversationId);
+        if (conversation && conversation.title === 'New Chat') {
+          const title = this.generateTitle(message);
+          this.db.updateConversationTitle(this.currentConversationId, title);
+        }
       }
 
     } catch (error) {
@@ -285,6 +360,9 @@ export class SDKAdapter {
     } else if (event.type === 'content_block_delta') {
       // Token or tool input update
       if (event.delta?.type === 'text_delta' && event.delta.text) {
+        // Accumulate text for database storage
+        this.currentAssistantMessage += event.delta.text;
+
         // Send text token directly (already streaming from SDK)
         this.sendResponse({
           type: 'token',
@@ -326,6 +404,9 @@ export class SDKAdapter {
    * @param text - Full text to emit
    */
   private async emitTextChunked(text: string): Promise<void> {
+    // Accumulate text for database storage
+    this.currentAssistantMessage += text;
+
     // Split text into words while preserving whitespace
     const words = text.split(/(\s+)/);
 
@@ -345,6 +426,19 @@ export class SDKAdapter {
         }
       }
     }
+  }
+
+  /**
+   * Generate a conversation title from the user's first message
+   */
+  private generateTitle(message: string): string {
+    // Take first 50 characters, trim, and add ellipsis if needed
+    const maxLength = 50;
+    const trimmed = message.trim();
+    if (trimmed.length <= maxLength) {
+      return trimmed;
+    }
+    return trimmed.substring(0, maxLength).trim() + '...';
   }
 
   /**

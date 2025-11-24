@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-import { Moon, Sun, X, Send, Trash2 } from 'lucide-react'
+import { X, Send, Trash2, Menu } from 'lucide-react'
 import { useAgent } from './useAgent'
 import { ToolResult } from './components/ToolResult'
 import { Markdown } from './components/Markdown'
+import { Navigation } from './components/Navigation'
 import type { ImageAttachment } from './types'
 
 // Slash command definitions
@@ -25,6 +26,8 @@ function App() {
   const [pastedImages, setPastedImages] = useState<ImageAttachment[]>([])
   const [showSlashMenu, setShowSlashMenu] = useState(false)
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0)
+  const [showNavigation, setShowNavigation] = useState(false)
+  const [currentConversationId, setCurrentConversationId] = useState<string | undefined>()
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     // Load theme from localStorage or default to light
     const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null
@@ -181,17 +184,36 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [messages.length, clearHistory])
 
+  const handleConversationSelect = (id: string) => {
+    setCurrentConversationId(id)
+    // TODO: Load messages for this conversation
+  }
+
+  const handleNewConversation = () => {
+    setCurrentConversationId(undefined)
+    clearHistory()
+  }
+
   return (
     <div className="app">
+      <Navigation
+        isOpen={showNavigation}
+        onClose={() => setShowNavigation(false)}
+        theme={theme}
+        onThemeToggle={toggleTheme}
+        currentConversationId={currentConversationId}
+        onConversationSelect={handleConversationSelect}
+        onNewConversation={handleNewConversation}
+      />
+
       <div className="header">
-        <h1>Desktop Assistant</h1>
+        <button onClick={() => setShowNavigation(true)} className="hamburger-btn" title="Menu">
+          <Menu size={20} />
+        </button>
         <div className="header-actions">
           <span className={`status ${isAgentReady ? 'ready' : 'loading'}`}>
             {isAgentReady ? '● Ready' : '○ Starting...'}
           </span>
-          <button onClick={toggleTheme} className="theme-toggle" title="Toggle theme">
-            {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
-          </button>
           {messages.length > 0 && (
             <button onClick={clearHistory} className="clear-btn">
               <Trash2 size={16} />

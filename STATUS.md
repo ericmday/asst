@@ -1,15 +1,15 @@
 # Development Status
 
 **Last Updated:** November 24, 2025
-**Current Phase:** SDK Migration (Phase 2+ Complete with Enhancements)
-**Progress:** 30% (2/8 phases + bonus features)
+**Current Phase:** SDK Migration + UI Enhancements
+**Progress:** 35% (2/8 phases + bonus features + navigation redesign)
 
 ---
 
 ## 🎯 Current Focus
 
 ### ✅ Last Task Completed
-**Phase 2+: SDK Adapter + Session Management + Slash Commands - COMPLETE!**
+**Navigation Redesign + Conversation History - COMPLETE!**
 
 **Core Adapter (Phase 2):**
 - ✅ Created src/sdk-adapter.ts (335 lines)
@@ -55,7 +55,9 @@
 - Ready for tool integration
 
 ### ⏭️ Next Task
-**Phase 3: Convert Tools to SDK Format**
+**Phase 3: Convert Tools to SDK Format OR Continue UI Polish**
+
+**Option A - SDK Migration (Phase 3):**
 - [ ] Study SDK tool() helper and Zod schema format
 - [ ] Convert filesystem tools (list, read, write, search)
 - [ ] Convert system tools (info, shell, open)
@@ -64,11 +66,134 @@
 - [ ] Register tools with SDK query
 - [ ] Test tool execution through SDK
 
-**Reference:** See [docs/08-sdk-migration-plan.md](./docs/08-sdk-migration-plan.md) for detailed migration guide
+**Option B - UI/Features:**
+- [ ] Load conversation messages when selecting from history
+- [ ] Real-time conversation updates in sidebar
+- [ ] Search/filter conversations
+- [ ] Export conversation functionality
+- [ ] Keyboard shortcuts for navigation
+
+**Reference:** See [docs/08-sdk-migration-plan.md](./docs/08-sdk-migration-plan.md) for SDK migration guide
 
 ---
 
 ## 📝 Recent Changes (Diff Log)
+
+### Session 16 - 2025-11-24
+```diff
++ Navigation Redesign + Conversation History COMPLETE!
++ Replaced header with hamburger menu navigation:
+  + apps/tauri-shell/src/components/Navigation.tsx (new file, 180+ lines)
+    - Created navigation drawer with 3 tabs: History, Tools, Settings
+    - Slides in from left (320px wide) with backdrop
+    - Tab-based navigation with active state
+    - Close button in header
+    - Smooth animations (slideInLeft, fadeIn)
+  + apps/tauri-shell/src/components/Conversations.tsx
+    - Added embedded mode for navigation drawer
+    - Dual rendering: standalone sidebar OR embedded in nav
+    - New conversations-header-embedded styling
+    - "New Chat" button (full width when embedded)
+  + apps/tauri-shell/src/App.tsx
+    - Removed "Desktop Assistant" title text
+    - Added hamburger menu button (☰) in top left
+    - Removed History button from header
+    - Removed theme toggle from header
+    - Integrated Navigation component
+    - Cleaner header: hamburger + status + clear button
+  + apps/tauri-shell/src/styles.css (~300 new lines)
+    - Navigation drawer styles (.nav-drawer, .nav-backdrop)
+    - Navigation tabs (.nav-tab, .nav-tab.active)
+    - Tool list styling (.tool-list, .tool-item)
+    - Settings section (.setting-item, .theme-toggle-btn)
+    - About info section (.about-info)
+    - Hamburger button (.hamburger-btn)
+    - Embedded conversations header (.conversations-header-embedded)
+    - Updated header padding and layout
+
++ Conversation History Integration:
+  + Full conversation persistence working
+    - Auto-saves user and assistant messages to SQLite
+    - Auto-generates titles from first message
+    - Conversations stored in ~/.claude/history.db
+  + Rust Tauri Commands:
+    - list_conversations, load_conversation
+    - new_conversation, delete_conversation
+  + IPC handlers implemented in agent-runtime
+  + Database integration complete with SDK adapter
+
++ Navigation Drawer Features:
+  + History Tab:
+    - Embedded Conversations component
+    - Lists all past conversations
+    - "New Chat" button (prominent, full width)
+    - Click to load conversation (UI TODO)
+    - Hover to reveal delete button
+    - Shows title and relative date
+  + Tools Tab:
+    - Lists 4 tool categories with emoji icons
+    - Filesystem (📁), System (💻), Clipboard (📋), Vision (📸)
+    - Shows tool names and descriptions
+    - Card-based layout
+  + Settings Tab:
+    - Theme toggle with large icon button (🌙/☀️)
+    - Shows current theme (Light/Dark mode)
+    - About section with version info
+    - Desktop Assistant v0.1.0
+    - Model: Claude Sonnet 4.5
+
++ UI Improvements:
+  + Cleaner header with hamburger menu
+  + Theme toggle relocated to Settings (more organized)
+  + Tab-based navigation with visual feedback
+  + Smooth animations throughout
+  + Backdrop overlay when drawer open
+  + Professional, modern appearance
+```
+
+**Summary:** Major UI redesign complete! Hamburger navigation replaces header, theme moved to Settings, conversation history fully functional with sidebar. Interface now matches modern desktop app patterns with organized drawer navigation (History/Tools/Settings). All conversations auto-saved to SQLite with titles, dates, and delete functionality.
+
+**Decisions Made:**
+- Use hamburger menu (☰) instead of prominent header text
+- Organize features into 3 tabs: History, Tools, Settings
+- Embed Conversations component in History tab
+- Move theme toggle to Settings for cleaner header
+- Use 320px drawer width (wider than 280px for conversations)
+- Tab-based navigation with active state highlighting
+- Close drawer by clicking backdrop or X button
+
+**Technical Details:**
+- Navigation.tsx: 180+ lines, tab state management
+- Added embedded prop to Conversations component
+- Conversations: 235 lines (embedded + standalone modes)
+- Styles.css: +300 lines for navigation drawer
+- Header simplified: hamburger + status + clear
+- All conversation CRUD operations functional
+- Auto-title generation from first user message (50 char max)
+
+**Tested Successfully:**
+- ✅ Hamburger menu opens drawer
+- ✅ Tab switching (History, Tools, Settings)
+- ✅ Theme toggle in Settings
+- ✅ Conversations list in History
+- ✅ New Chat button creates conversation
+- ✅ Delete conversation on hover
+- ✅ Backdrop closes drawer
+- ✅ Rust compilation successful
+- ✅ Vite hot reload working
+- ✅ Agent runtime connected
+
+**Known Issues:**
+- Loading conversation messages not yet implemented (TODO)
+- Clicking conversation in History doesn't reload messages
+- No search/filter for conversations yet
+
+**Next Steps:**
+1. Option A: Continue SDK migration (Phase 3 - Tool conversion)
+2. Option B: Implement conversation message loading
+3. Add keyboard shortcuts for navigation (Cmd+1/2/3 for tabs)
+4. Add conversation search/filter
+5. Consider adding conversation export feature
 
 ### Session 15 - 2025-11-24
 ```diff

@@ -8,7 +8,7 @@ import { setupTools } from './tools/index.js';
  */
 interface AgentRequest {
   id: string;
-  kind: 'user_message' | 'clear_history' | 'load_conversation' | 'new_conversation';
+  kind: 'user_message' | 'clear_history' | 'load_conversation' | 'new_conversation' | 'list_conversations' | 'delete_conversation';
   message?: string;
   conversation_id?: string;
   images?: string; // JSON string of image attachments
@@ -70,21 +70,73 @@ async function main() {
             break;
 
           case 'new_conversation':
-            // TODO Phase 6: Implement conversation management with SDK session support
+            // Create a new conversation
+            const newConv = adapter.createConversation();
             console.log(JSON.stringify({
               type: 'done',
               id: request.id,
+              data: { conversation: newConv },
               timestamp: Date.now()
             }));
             break;
 
           case 'load_conversation':
-            // TODO Phase 6: Implement conversation management with SDK session support
+            // Load an existing conversation
+            if (request.conversation_id) {
+              const conversation = adapter.loadConversation(request.conversation_id);
+              if (conversation) {
+                console.log(JSON.stringify({
+                  type: 'done',
+                  id: request.id,
+                  data: { conversation },
+                  timestamp: Date.now()
+                }));
+              } else {
+                console.log(JSON.stringify({
+                  type: 'error',
+                  id: request.id,
+                  error: 'Conversation not found',
+                  timestamp: Date.now()
+                }));
+              }
+            } else {
+              console.log(JSON.stringify({
+                type: 'error',
+                id: request.id,
+                error: 'Missing conversation_id',
+                timestamp: Date.now()
+              }));
+            }
+            break;
+
+          case 'list_conversations':
+            // Get all conversations
+            const conversations = adapter.getAllConversations();
             console.log(JSON.stringify({
               type: 'done',
               id: request.id,
+              data: { conversations },
               timestamp: Date.now()
             }));
+            break;
+
+          case 'delete_conversation':
+            // Delete a conversation
+            if (request.conversation_id) {
+              adapter.deleteConversation(request.conversation_id);
+              console.log(JSON.stringify({
+                type: 'done',
+                id: request.id,
+                timestamp: Date.now()
+              }));
+            } else {
+              console.log(JSON.stringify({
+                type: 'error',
+                id: request.id,
+                error: 'Missing conversation_id',
+                timestamp: Date.now()
+              }));
+            }
             break;
 
           default:

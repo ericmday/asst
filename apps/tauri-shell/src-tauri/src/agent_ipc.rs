@@ -26,6 +26,8 @@ pub struct AgentRequest {
     pub message: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub images: Option<String>, // JSON string of image attachments
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub conversation_id: Option<String>,
 }
 
 pub struct AgentProcess {

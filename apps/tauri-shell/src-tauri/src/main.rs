@@ -52,6 +52,7 @@ async fn send_message(
                 kind: "user_message".to_string(),
                 message: Some(message),
                 images,
+                conversation_id: None,
             };
 
             process
@@ -74,12 +75,109 @@ async fn clear_history(state: State<'_, AppState>) -> Result<(), String> {
                 kind: "clear_history".to_string(),
                 message: None,
                 images: None,
+                conversation_id: None,
             };
 
             process
                 .send_request(&request)
                 .await
                 .map_err(|e| format!("Failed to clear history: {}", e))
+        }
+        None => Err("Agent not running".to_string()),
+    }
+}
+
+#[tauri::command]
+async fn list_conversations(state: State<'_, AppState>) -> Result<String, String> {
+    let agent = state.agent.lock().await;
+
+    match agent.as_ref() {
+        Some(process) => {
+            let request = AgentRequest {
+                id: uuid::Uuid::new_v4().to_string(),
+                kind: "list_conversations".to_string(),
+                message: None,
+                images: None,
+                conversation_id: None,
+            };
+
+            process
+                .send_request(&request)
+                .await
+                .map_err(|e| format!("Failed to list conversations: {}", e))?;
+
+            // Note: The response will come through the event emitter
+            // The UI will handle it via the agent_response event
+            Ok("Request sent".to_string())
+        }
+        None => Err("Agent not running".to_string()),
+    }
+}
+
+#[tauri::command]
+async fn load_conversation(state: State<'_, AppState>, conversation_id: String) -> Result<(), String> {
+    let agent = state.agent.lock().await;
+
+    match agent.as_ref() {
+        Some(process) => {
+            let request = AgentRequest {
+                id: uuid::Uuid::new_v4().to_string(),
+                kind: "load_conversation".to_string(),
+                message: None,
+                images: None,
+                conversation_id: Some(conversation_id),
+            };
+
+            process
+                .send_request(&request)
+                .await
+                .map_err(|e| format!("Failed to load conversation: {}", e))
+        }
+        None => Err("Agent not running".to_string()),
+    }
+}
+
+#[tauri::command]
+async fn new_conversation(state: State<'_, AppState>) -> Result<(), String> {
+    let agent = state.agent.lock().await;
+
+    match agent.as_ref() {
+        Some(process) => {
+            let request = AgentRequest {
+                id: uuid::Uuid::new_v4().to_string(),
+                kind: "new_conversation".to_string(),
+                message: None,
+                images: None,
+                conversation_id: None,
+            };
+
+            process
+                .send_request(&request)
+                .await
+                .map_err(|e| format!("Failed to create new conversation: {}", e))
+        }
+        None => Err("Agent not running".to_string()),
+    }
+}
+
+#[tauri::command]
+async fn delete_conversation(state: State<'_, AppState>, conversation_id: String) -> Result<(), String> {
+    let agent = state.agent.lock().await;
+
+    match agent.as_ref() {
+        Some(process) => {
+            let request = AgentRequest {
+                id: uuid::Uuid::new_v4().to_string(),
+                kind: "delete_conversation".to_string(),
+                message: None,
+                images: None,
+                conversation_id: Some(conversation_id),
+            };
+
+            process
+                .send_request(&request)
+                .await
+                .map_err(|e| format!("Failed to delete conversation: {}", e))
         }
         None => Err("Agent not running".to_string()),
     }
@@ -101,7 +199,11 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             spawn_agent,
             send_message,
-            clear_history
+            clear_history,
+            list_conversations,
+            load_conversation,
+            new_conversation,
+            delete_conversation
         ])
         .system_tray(tray)
         .on_system_tray_event(handle_tray_event)
