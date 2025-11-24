@@ -6,6 +6,11 @@ interface MarkdownProps {
 }
 
 export function Markdown({ content }: MarkdownProps) {
+  // Normalize excessive newlines - collapse to single newlines only
+  const normalizedContent = content
+    .replace(/\n{2,}/g, '\n')  // Collapse all multiple newlines to single newline
+    .trim();
+
   return (
     <div className="markdown">
       <ReactMarkdown
@@ -35,7 +40,7 @@ export function Markdown({ content }: MarkdownProps) {
           },
         }}
       >
-        {content}
+        {normalizedContent}
       </ReactMarkdown>
     </div>
   );

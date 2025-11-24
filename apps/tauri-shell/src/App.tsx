@@ -5,21 +5,52 @@ import { Markdown } from './components/Markdown'
 
 function App() {
   const [inputValue, setInputValue] = useState('')
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    // Load theme from localStorage or default to light
+    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null
+    return savedTheme || 'light'
+  })
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { messages, toolCalls, isAgentReady, isLoading, sendMessage, clearHistory } = useAgent()
+
+  // Apply theme to document and save to localStorage
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('theme', theme)
+  }, [theme])
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light')
+  }
 
   const handleSend = () => {
     if (inputValue.trim() && !isLoading) {
       sendMessage(inputValue)
       setInputValue('')
+      // Reset textarea height after sending
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto'
+      }
     }
   }
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Enter without shift sends the message
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
     }
+    // Shift+Enter adds a new line (default behavior)
+  }
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputValue(e.target.value)
+
+    // Auto-resize textarea
+    const textarea = e.target
+    textarea.style.height = 'auto'
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`
   }
 
   // Auto-scroll to bottom when new messages arrive
@@ -51,6 +82,9 @@ function App() {
           <span className={`status ${isAgentReady ? 'ready' : 'loading'}`}>
             {isAgentReady ? '● Ready' : '○ Starting...'}
           </span>
+          <button onClick={toggleTheme} className="theme-toggle" title="Toggle theme">
+            {theme === 'light' ? '🌙' : '☀️'}
+          </button>
           {messages.length > 0 && (
             <button onClick={clearHistory} className="clear-btn">
               Clear
@@ -62,9 +96,19 @@ function App() {
       <div className="messages">
         {messages.length === 0 ? (
           <div className="empty-state">
-            <p>Ask me anything...</p>
-            <p className="hint">Cmd+Shift+Space to toggle window</p>
-            <p className="hint">Cmd+N to clear chat</p>
+            <h2>What can I help you with?</h2>
+            <p>I can help you:</p>
+            <ul>
+              <li>List, read, and write files</li>
+              <li>Search for files</li>
+              <li>Run shell commands</li>
+              <li>Get system information</li>
+              <li>And more!</li>
+            </ul>
+            <div className="hints">
+              <p className="hint">Enter to send • Shift+Enter for new line</p>
+              <p className="hint">Cmd+Shift+Space to toggle • Cmd+N to clear</p>
+            </div>
           </div>
         ) : (
           <>
@@ -100,13 +144,14 @@ function App() {
       </div>
 
       <div className="input-area">
-        <input
-          type="text"
+        <textarea
+          ref={textareaRef}
           value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyPress={handleKeyPress}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
           placeholder={isAgentReady ? "Type a message..." : "Starting agent..."}
           disabled={!isAgentReady || isLoading}
+          rows={1}
         />
         <button
           onClick={handleSend}
