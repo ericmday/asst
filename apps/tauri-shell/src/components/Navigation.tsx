@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Moon, Sun, X, Settings, Wrench, MessageSquare } from 'lucide-react'
 import { Conversations } from './Conversations'
+import type { Message } from '../types'
 
 interface NavigationProps {
   isOpen: boolean
@@ -10,6 +11,7 @@ interface NavigationProps {
   currentConversationId?: string
   onConversationSelect: (id: string) => void
   onNewConversation: () => void
+  onLoadMessages: (messages: Message[]) => void
 }
 
 type Tab = 'history' | 'tools' | 'settings'
@@ -21,7 +23,8 @@ export function Navigation({
   onThemeToggle,
   currentConversationId,
   onConversationSelect,
-  onNewConversation
+  onNewConversation,
+  onLoadMessages
 }: NavigationProps) {
   const [activeTab, setActiveTab] = useState<Tab>('history')
 
@@ -75,6 +78,7 @@ export function Navigation({
                 currentConversationId={currentConversationId}
                 onConversationSelect={onConversationSelect}
                 onNewConversation={onNewConversation}
+                onLoadMessages={onLoadMessages}
                 embedded={true}
               />
             </div>

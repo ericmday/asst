@@ -198,6 +198,11 @@ export function useAgent() {
     }
   }, []);
 
+  const loadMessages = useCallback((loadedMessages: Message[]) => {
+    setMessages(loadedMessages);
+    setToolCalls([]);
+  }, []);
+
   return {
     messages,
     toolCalls,
@@ -205,5 +210,6 @@ export function useAgent() {
     isLoading,
     sendMessage,
     clearHistory,
+    loadMessages,
   };
 }

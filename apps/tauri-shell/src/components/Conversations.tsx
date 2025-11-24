@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { MessageSquare, Plus, Trash2, X } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/tauri'
 import { listen } from '@tauri-apps/api/event'
+import type { Message } from '../types'
 
 interface Conversation {
   id: string
@@ -10,12 +11,21 @@ interface Conversation {
   updated_at: number
 }
 
+interface BackendMessage {
+  id: string
+  conversation_id: string
+  role: 'user' | 'assistant'
+  content: string  // JSON string
+  timestamp: number
+}
+
 interface ConversationsProps {
   isOpen: boolean
   onClose: () => void
   currentConversationId?: string
   onConversationSelect: (id: string) => void
   onNewConversation: () => void
+  onLoadMessages: (messages: Message[]) => void
   embedded?: boolean // Whether this is embedded in navigation drawer
 }
 
@@ -25,6 +35,7 @@ export function Conversations({
   currentConversationId,
   onConversationSelect,
   onNewConversation,
+  onLoadMessages,
   embedded = false
 }: ConversationsProps) {
   const [conversations, setConversations] = useState<Conversation[]>([])
@@ -53,7 +64,33 @@ export function Conversations({
       // Handle load_conversation response
       if (response.type === 'done' && response.data?.messages) {
         console.log('[Conversations] Loaded conversation messages:', response.data.messages)
-        // TODO: Pass messages to parent component to display
+        const backendMessages = response.data.messages as BackendMessage[]
+
+        // Convert backend message format to frontend Message format
+        const uiMessages: Message[] = backendMessages.map(msg => {
+          // Content is JSON-encoded, so parse it
+          let content = msg.content
+          try {
+            // If content is a JSON string, parse it
+            if (content.startsWith('"') && content.endsWith('"')) {
+              content = JSON.parse(content)
+            }
+          } catch (e) {
+            // If parsing fails, use as-is
+            console.warn('[Conversations] Failed to parse message content:', e)
+          }
+
+          return {
+            id: msg.id,
+            role: msg.role,
+            content,
+            timestamp: msg.timestamp,
+            isStreaming: false
+          }
+        })
+
+        console.log('[Conversations] Converted messages:', uiMessages)
+        onLoadMessages(uiMessages)
       }
     })
 

@@ -14,7 +14,7 @@ pub enum AgentResponse {
     Token { id: String, token: String, timestamp: i64 },
     ToolUse { id: String, data: serde_json::Value, timestamp: i64 },
     ToolResult { id: String, data: serde_json::Value, timestamp: i64 },
-    Done { id: String, timestamp: i64 },
+    Done { id: String, #[serde(skip_serializing_if = "Option::is_none")] data: Option<serde_json::Value>, timestamp: i64 },
     Error { id: String, error: String, timestamp: i64 },
 }
 

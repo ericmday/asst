@@ -36,7 +36,7 @@ function App() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const slashMenuRef = useRef<HTMLDivElement>(null)
-  const { messages, toolCalls, isAgentReady, isLoading, sendMessage, clearHistory } = useAgent()
+  const { messages, toolCalls, isAgentReady, isLoading, sendMessage, clearHistory, loadMessages } = useAgent()
 
   // Filter slash commands based on input
   const filteredCommands = inputValue.startsWith('/')
@@ -186,7 +186,7 @@ function App() {
 
   const handleConversationSelect = (id: string) => {
     setCurrentConversationId(id)
-    // TODO: Load messages for this conversation
+    // Messages will be loaded by Conversations component via loadMessages callback
   }
 
   const handleNewConversation = () => {
@@ -204,6 +204,7 @@ function App() {
         currentConversationId={currentConversationId}
         onConversationSelect={handleConversationSelect}
         onNewConversation={handleNewConversation}
+        onLoadMessages={loadMessages}
       />
 
       <div className="header">
