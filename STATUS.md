@@ -2,38 +2,107 @@
 
 **Last Updated:** 2025-11-23
 **Current Phase:** Phase 4 - UI Polish (In Progress)
-**Progress:** 75%
+**Progress:** 90%
 
 ---
 
 ## 🎯 Current Focus
 
 ### ✅ Last Task Completed
-**Phase 4: Tool Result Rendering, Markdown Support, and Simulated Streaming!**
-- ✅ Created ToolResult component with visual status indicators
-- ✅ Added tool-specific formatters for all 7 tools
-- ✅ Implemented collapsible results with "Show more/less" buttons
-- ✅ Installed react-markdown and remark-gfm packages
-- ✅ Created Markdown component for rich text rendering
-- ✅ Added comprehensive markdown styles (headings, lists, code, tables)
-- ✅ Fixed react-markdown className prop error
-- ✅ Implemented simulated streaming (~50 words/sec)
-- ✅ Fixed window freezing issue - text now streams smoothly
-- ✅ **UI now feels responsive and polished!**
+**Phase 4: Fixed Markdown Spacing Issue!**
+- ✅ Identified root cause: `line-height: 1.5` combined with paragraph margins
+- ✅ Reduced all markdown line-height values to 1 for tight spacing
+- ✅ Updated `.markdown`, headings, list items, and code blocks
+- ✅ **Markdown content now renders with optimal vertical spacing!**
 
 ### ⏭️ Next Task
 **Phase 4: Remaining UI Polish**
-- [ ] Add textarea for multi-line input (instead of single-line input)
-- [ ] Improve keyboard shortcuts (Shift+Enter for new line)
+- [x] Add textarea for multi-line input (instead of single-line input)
+- [x] Improve keyboard shortcuts (Shift+Enter for new line)
+- [x] **Fix excessive newline spacing in markdown**
 - [ ] Implement dark/light theme toggle
 - [ ] Add settings panel
 - [ ] Polish scrolling and layout behavior
+- [ ] Clean up test files (test-agent.js, test-nonstreaming.js)
 
 **Reference:** See [docs/05-web-ui.md](./docs/05-web-ui.md)
 
 ---
 
 ## 📝 Recent Changes (Diff Log)
+
+### Session 9 - 2025-11-23
+```diff
++ Phase 4 Continued - Fixed Markdown Spacing!
++ Updated apps/tauri-shell/src/styles.css:
+  + Changed .markdown line-height from 1.5 to 1
+  + Changed .markdown h1-h6 line-height from 1.3 to 1
+  + Changed .markdown li line-height from 1.4 to 1
+  + Changed .markdown .code-block code line-height from 1.5 to 1
++ Fixed excessive vertical spacing in markdown-rendered responses
+```
+
+**Summary:** Markdown spacing issue resolved! Root cause was `line-height: 1.5` combined with paragraph margins creating excessive vertical space. Changed all markdown line-height values to 1 for optimal tight spacing.
+
+**Decisions Made:**
+- Use `line-height: 1` across all markdown elements for consistency
+- Prioritize compact, readable text over extra line spacing
+- Keep paragraph margins small (0.25em) to complement tight line-height
+
+**Technical Details:**
+- User identified the issue was in `.markdown { line-height: 1.5; }` rule
+- Changed from 1.5 → 1.35 → 1 (final) for tightest spacing
+- Applied uniformly to base, headings, list items, and code blocks
+- Hot-reload in dev server immediately showed improvements
+
+**Known Issues:**
+- None! Markdown spacing now renders beautifully with compact layout
+
+### Session 8 - 2025-11-23
+```diff
++ Phase 4 Continued - Multi-line Input and UX Improvements!
++ Updated apps/tauri-shell/src/App.tsx:
+  + Replaced <input> with <textarea> for multi-line support
+  + Added textareaRef for managing textarea height
+  + Implemented auto-resize (grows to max 120px)
+  + Changed keyboard handling: Enter sends, Shift+Enter adds new line
+  + Updated empty state with improved capability list
+  + Simplified placeholder text to "Type a message..."
+  + Added hints showing keyboard shortcuts
++ Updated apps/tauri-shell/src/styles.css:
+  + Replaced input styles with textarea styles
+  + Added resize: none, min-height: 42px, max-height: 120px
+  + Reduced markdown paragraph margins (0.4em → 0.25em)
+  + Reduced list margins (0.4em → 0.25em)
+  + Reduced list item margins (0.15em → 0.1em)
+  + Added smart spacing rules for p + ul combinations
+  + Enhanced empty state styling with better structure
++ Updated apps/tauri-shell/src/components/Markdown.tsx:
+  + Added aggressive newline normalization
+  + Collapses all multiple newlines to single newlines
+  + Prevents excessive spacing in rendered markdown
+```
+
+**Summary:** Multi-line input implemented! Textarea auto-resizes, Enter/Shift+Enter work intuitively. Attempted to fix markdown spacing but issue persists.
+
+**Decisions Made:**
+- Use textarea with auto-resize instead of fixed multi-line input
+- Max height of 120px to prevent taking over the screen
+- Attempted aggressive newline normalization (needs more work)
+- Show keyboard shortcuts in empty state and placeholder
+- Keep empty state informative but concise
+
+**Technical Details:**
+- Auto-resize calculates scrollHeight and caps at 120px
+- Height resets to 'auto' after sending to collapse textarea
+- Tried markdown normalization with regex \n{2,} → \n (not effective)
+- Reduced CSS margins multiple times (still has excessive spacing)
+- Issue: Markdown renderer creating too much vertical space between elements
+
+**Known Issues:**
+- ⚠️ Excessive vertical spacing in markdown-rendered responses
+- Multiple attempts to normalize newlines haven't fully resolved the issue
+- May need to reconsider markdown rendering approach or CSS strategy
 
 ### Session 7 - 2025-11-23
 ```diff
