@@ -3,7 +3,9 @@ import { invoke } from '@tauri-apps/api/tauri';
 import { listen } from '@tauri-apps/api/event';
 import type { AgentResponse, Message, ToolCall, ImageAttachment } from './types';
 
-export function useAgent() {
+export function useAgent(callbacks?: {
+  onConversationCleared?: () => void;
+}) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
   const [isAgentReady, setIsAgentReady] = useState(false);
@@ -201,15 +203,18 @@ export function useAgent() {
       conversationVersionRef.current++; // Invalidate old responses
       setMessages([]);
       setToolCalls([]);
+      callbacks?.onConversationCleared?.();
     } catch (error) {
       console.error('Failed to clear history:', error);
     }
-  }, []);
+  }, [callbacks]);
 
-  const loadMessages = useCallback((loadedMessages: Message[]) => {
+  const loadMessages = useCallback((loadedMessages: Message[], preventAutoCompact?: () => void) => {
     conversationVersionRef.current++; // Invalidate old responses
     setMessages(loadedMessages);
     setToolCalls([]);
+    // Prevent auto-compact when loading historical messages
+    preventAutoCompact?.();
   }, []);
 
   return {
@@ -220,5 +225,6 @@ export function useAgent() {
     sendMessage,
     clearHistory,
     loadMessages,
+    conversationVersionRef,
   };
 }

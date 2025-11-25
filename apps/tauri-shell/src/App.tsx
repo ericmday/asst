@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils'
 import type { ImageAttachment } from './types'
 
 // Window sizes
-const COMPACT_HEIGHT = 90  // Compact - just input area (no header, no frame)
+const COMPACT_HEIGHT = 60  // Compact - minimal height for input only
 const EXPANDED_HEIGHT = 600
 const WINDOW_WIDTH = 360
 const INACTIVITY_TIMEOUT = 5 * 60 * 1000  // 5 minutes in milliseconds
@@ -46,11 +46,24 @@ function App() {
     return savedTheme || 'light'
   })
   const [isExpanded, setIsExpanded] = useState(false)
+  const [shouldAutoCompact, setShouldAutoCompact] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const slashMenuRef = useRef<HTMLDivElement>(null)
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const { messages, toolCalls, isAgentReady, isLoading, sendMessage, clearHistory, loadMessages } = useAgent()
+
+  const agentCallbacks = {
+    onConversationCleared: () => {
+      setInputValue('');
+      setPastedImages([]);
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+      }
+      setShouldAutoCompact(false);
+    }
+  };
+
+  const { messages, toolCalls, isAgentReady, isLoading, sendMessage, clearHistory, loadMessages, conversationVersionRef } = useAgent(agentCallbacks)
 
   // Filter slash commands based on input
   const filteredCommands = inputValue.startsWith('/')
@@ -95,6 +108,7 @@ function App() {
       inactivityTimerRef.current = setTimeout(async () => {
         // Only auto-compact if not currently loading
         if (!isLoading && isExpanded) {
+          setShouldAutoCompact(true)
           await compactWindow()
         }
       }, INACTIVITY_TIMEOUT)
@@ -107,11 +121,17 @@ function App() {
   }
 
   // Auto-expand when messages are loaded (e.g., from conversation history)
+  // Only auto-compact when shouldAutoCompact flag is true (initial state or timeout)
   useEffect(() => {
     if (messages.length > 0 && !isExpanded) {
-      expandWindow()
+      expandWindow().then(() => {
+        // Only set after expansion completes to avoid race conditions
+        setShouldAutoCompact(prev => prev ? false : prev)
+      })
+    } else if (messages.length === 0 && isExpanded && shouldAutoCompact) {
+      compactWindow()
     }
-  }, [messages.length])
+  }, [messages.length, isExpanded, shouldAutoCompact])
 
   // Start inactivity timer when window becomes expanded
   useEffect(() => {
@@ -287,12 +307,13 @@ function App() {
 
   const handleNewConversation = () => {
     setCurrentConversationId(undefined)
+    setShouldAutoCompact(false)
     clearHistory()
     resetInactivityTimer()
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background text-foreground">
+    <div className={cn("flex flex-col h-screen text-foreground", isExpanded && "bg-background")}>
       <Navigation
         isOpen={showNavigation}
         onClose={() => {
@@ -305,6 +326,8 @@ function App() {
         onConversationSelect={handleConversationSelect}
         onNewConversation={handleNewConversation}
         onLoadMessages={loadMessages}
+        conversationVersionRef={conversationVersionRef}
+        preventAutoCompact={() => setShouldAutoCompact(false)}
       />
 
       {isExpanded && messages.length > 0 && (
@@ -332,6 +355,7 @@ function App() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
+                  setShouldAutoCompact(false)
                   clearHistory()
                   resetInactivityTimer()
                 }}
@@ -450,7 +474,7 @@ function App() {
 
       <div className="relative flex flex-col">
         {pastedImages.length > 0 && (
-          <Card className="m-2 p-2">
+          <Card className="m-2 py-2">
             <div className="flex gap-2 flex-wrap">
               {pastedImages.map((img, index) => (
                 <div key={index} className="relative group">
@@ -499,7 +523,7 @@ function App() {
             </div>
           </Card>
         )}
-        <div className="p-3">
+        <div className={cn(isExpanded ? "p-3" : "p-2")}>
           <Textarea
             ref={textareaRef}
             value={inputValue}

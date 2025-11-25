@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { MessageSquare, Plus, Trash2, X } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/tauri'
 import { listen } from '@tauri-apps/api/event'
@@ -29,8 +29,10 @@ interface ConversationsProps {
   currentConversationId?: string
   onConversationSelect: (id: string) => void
   onNewConversation: () => void
-  onLoadMessages: (messages: Message[]) => void
+  onLoadMessages: (messages: Message[], preventAutoCompact?: () => void) => void
+  conversationVersionRef?: React.MutableRefObject<number>
   embedded?: boolean // Whether this is embedded in navigation drawer
+  preventAutoCompact?: () => void
 }
 
 export function Conversations({
@@ -40,10 +42,13 @@ export function Conversations({
   onConversationSelect,
   onNewConversation,
   onLoadMessages,
-  embedded = false
+  conversationVersionRef,
+  embedded = false,
+  preventAutoCompact
 }: ConversationsProps) {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [loading, setLoading] = useState(true)
+  const loadingConversationIdRef = useRef<string | undefined>(undefined)
 
   // Load conversations when component mounts or sidebar opens
   useEffect(() => {
@@ -55,6 +60,7 @@ export function Conversations({
   // Listen for agent responses with conversation data
   useEffect(() => {
     const unlisten = listen<any>('agent_response', (event) => {
+      const currentVersion = conversationVersionRef?.current
       const response = event.payload
       console.log('[Conversations] Received event:', response.type, response.data)
 
@@ -67,6 +73,23 @@ export function Conversations({
 
       // Handle load_conversation response
       if (response.type === 'done' && response.data?.messages) {
+        // Version guard - Layer 1 defense
+        if (conversationVersionRef && currentVersion !== conversationVersionRef.current) {
+          console.log('[Conversations] Ignoring stale message load (version mismatch)')
+          return
+        }
+
+        // Conversation ID guard - Layer 2 defense
+        const responseConversationId = response.data.conversation?.id
+        console.log('[Conversations] Checking conversation ID:', {
+          response: responseConversationId,
+          expected: loadingConversationIdRef.current
+        })
+        if (loadingConversationIdRef.current && responseConversationId !== loadingConversationIdRef.current) {
+          console.log('[Conversations] Ignoring stale message load (conversation ID mismatch)')
+          return
+        }
+
         console.log('[Conversations] Loaded conversation messages:', response.data.messages)
         const backendMessages = response.data.messages as BackendMessage[]
 
@@ -94,14 +117,16 @@ export function Conversations({
         })
 
         console.log('[Conversations] Converted messages:', uiMessages)
-        onLoadMessages(uiMessages)
+        onLoadMessages(uiMessages, preventAutoCompact)
+        // Clear the loading ref after successful load
+        loadingConversationIdRef.current = undefined
       }
     })
 
     return () => {
       unlisten.then((fn) => fn())
     }
-  }, [onLoadMessages])
+  }, [onLoadMessages, conversationVersionRef])
 
   const loadConversations = async () => {
     try {
@@ -126,6 +151,7 @@ export function Conversations({
 
   const handleSelectConversation = async (id: string) => {
     try {
+      loadingConversationIdRef.current = id
       await invoke('load_conversation', { conversationId: id })
       onConversationSelect(id)
       onClose()

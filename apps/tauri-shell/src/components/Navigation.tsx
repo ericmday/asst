@@ -15,7 +15,9 @@ interface NavigationProps {
   currentConversationId?: string
   onConversationSelect: (id: string) => void
   onNewConversation: () => void
-  onLoadMessages: (messages: Message[]) => void
+  onLoadMessages: (messages: Message[], preventAutoCompact?: () => void) => void
+  conversationVersionRef?: React.MutableRefObject<number>
+  preventAutoCompact?: () => void
 }
 
 type Tab = 'history' | 'tools' | 'settings'
@@ -28,7 +30,9 @@ export function Navigation({
   currentConversationId,
   onConversationSelect,
   onNewConversation,
-  onLoadMessages
+  onLoadMessages,
+  conversationVersionRef,
+  preventAutoCompact
 }: NavigationProps) {
   const [activeTab, setActiveTab] = useState<Tab>('history')
 
@@ -68,7 +72,9 @@ export function Navigation({
                   onConversationSelect={onConversationSelect}
                   onNewConversation={onNewConversation}
                   onLoadMessages={onLoadMessages}
+                  conversationVersionRef={conversationVersionRef}
                   embedded={true}
+                  preventAutoCompact={preventAutoCompact}
                 />
               </div>
             )}
