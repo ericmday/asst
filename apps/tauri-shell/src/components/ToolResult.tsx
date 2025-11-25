@@ -1,4 +1,10 @@
 import { useState } from 'react';
+import { ChevronDown, CheckCircle2, XCircle, Clock, File, Folder } from 'lucide-react';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { cn } from '@/lib/utils';
 import type { ToolCall } from '../types';
 
 interface ToolResultProps {
@@ -19,9 +25,9 @@ export function ToolResult({ toolCall }: ToolResultProps) {
     // Handle errors
     if (isError) {
       return (
-        <div className="tool-error">
-          <span className="error-icon">✗</span>
-          <span className="error-text">{result.error}</span>
+        <div className="flex items-start gap-2 p-2 bg-destructive/10 text-destructive rounded border-l-2 border-destructive">
+          <XCircle size={16} className="shrink-0 mt-0.5" />
+          <span className="text-sm">{result.error}</span>
         </div>
       );
     }
@@ -47,10 +53,10 @@ export function ToolResult({ toolCall }: ToolResultProps) {
     }
   };
 
-  const formatFileWrite = (result: any) => {
+  const formatFileWrite = (_result: any) => {
     return (
-      <div className="tool-result-success">
-        <span className="success-icon">✓</span>
+      <div className="flex items-center gap-2 text-sm">
+        <CheckCircle2 size={16} className="text-green-600 dark:text-green-400" />
         <span>File written: {toolCall.input?.path}</span>
       </div>
     );
@@ -59,23 +65,34 @@ export function ToolResult({ toolCall }: ToolResultProps) {
   const formatFileRead = (result: any) => {
     if (typeof result === 'string') {
       const preview = result.length > 200 ? result.substring(0, 200) + '...' : result;
+      const needsCollapse = result.length > 200;
+
       return (
-        <div className="tool-result-content">
-          <div className="content-header">
-            <span className="success-icon">✓</span>
-            <span>Read {toolCall.input?.path}</span>
-            {result.length > 200 && (
-              <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="expand-btn"
-              >
-                {isExpanded ? 'Show less' : 'Show all'}
-              </button>
-            )}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={16} className="text-green-600 dark:text-green-400" />
+            <span className="text-sm">Read {toolCall.input?.path}</span>
           </div>
-          <pre className="file-content">
-            {isExpanded ? result : preview}
-          </pre>
+          {needsCollapse ? (
+            <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+              <pre className="text-sm bg-muted p-2 rounded overflow-x-auto">
+                {preview}
+              </pre>
+              <CollapsibleContent>
+                <pre className="text-sm bg-muted p-2 rounded overflow-x-auto mt-2">
+                  {result.substring(200)}
+                </pre>
+              </CollapsibleContent>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="mt-1 w-full">
+                  <ChevronDown className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-180")} />
+                  {isExpanded ? 'Show less' : 'Show all'}
+                </Button>
+              </CollapsibleTrigger>
+            </Collapsible>
+          ) : (
+            <pre className="text-sm bg-muted p-2 rounded overflow-x-auto">{result}</pre>
+          )}
         </div>
       );
     }
@@ -84,28 +101,36 @@ export function ToolResult({ toolCall }: ToolResultProps) {
 
   const formatFileList = (result: any) => {
     if (Array.isArray(result)) {
+      const itemsToShow = isExpanded ? result : result.slice(0, 10);
+      const hasMore = result.length > 10;
+
       return (
-        <div className="tool-result-list">
-          <div className="list-header">
-            <span className="success-icon">✓</span>
-            <span>Found {result.length} items</span>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={16} className="text-green-600 dark:text-green-400" />
+            <span className="text-sm">Found {result.length} items</span>
           </div>
-          <ul className="file-list">
-            {result.slice(0, isExpanded ? undefined : 10).map((item: any, idx: number) => (
-              <li key={idx} className="file-item">
-                <span className="file-icon">{item.type === 'directory' ? '📁' : '📄'}</span>
-                <span className="file-name">{item.name}</span>
-              </li>
-            ))}
-          </ul>
-          {result.length > 10 && (
-            <button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="expand-btn"
-            >
-              {isExpanded ? 'Show less' : `Show ${result.length - 10} more...`}
-            </button>
-          )}
+          <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+            <ul className="space-y-1 text-sm">
+              {itemsToShow.map((item: any, idx: number) => (
+                <li key={idx} className="flex items-center gap-2 py-1">
+                  {item.type === 'directory' ?
+                    <Folder size={14} className="text-muted-foreground" /> :
+                    <File size={14} className="text-muted-foreground" />
+                  }
+                  <span className="truncate">{item.name}</span>
+                </li>
+              ))}
+            </ul>
+            {hasMore && (
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="mt-1 w-full">
+                  <ChevronDown className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-180")} />
+                  {isExpanded ? 'Show less' : `Show ${result.length - 10} more...`}
+                </Button>
+              </CollapsibleTrigger>
+            )}
+          </Collapsible>
         </div>
       );
     }
@@ -114,28 +139,33 @@ export function ToolResult({ toolCall }: ToolResultProps) {
 
   const formatSearchResults = (result: any) => {
     if (Array.isArray(result)) {
+      const itemsToShow = isExpanded ? result : result.slice(0, 10);
+      const hasMore = result.length > 10;
+
       return (
-        <div className="tool-result-list">
-          <div className="list-header">
-            <span className="success-icon">✓</span>
-            <span>Found {result.length} files</span>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={16} className="text-green-600 dark:text-green-400" />
+            <span className="text-sm">Found {result.length} files</span>
           </div>
-          <ul className="file-list">
-            {result.slice(0, isExpanded ? undefined : 10).map((file: string, idx: number) => (
-              <li key={idx} className="file-item">
-                <span className="file-icon">📄</span>
-                <span className="file-name">{file}</span>
-              </li>
-            ))}
-          </ul>
-          {result.length > 10 && (
-            <button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="expand-btn"
-            >
-              {isExpanded ? 'Show less' : `Show ${result.length - 10} more...`}
-            </button>
-          )}
+          <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+            <ul className="space-y-1 text-sm">
+              {itemsToShow.map((file: string, idx: number) => (
+                <li key={idx} className="flex items-center gap-2 py-1">
+                  <File size={14} className="text-muted-foreground" />
+                  <span className="truncate">{file}</span>
+                </li>
+              ))}
+            </ul>
+            {hasMore && (
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="mt-1 w-full">
+                  <ChevronDown className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-180")} />
+                  {isExpanded ? 'Show less' : `Show ${result.length - 10} more...`}
+                </Button>
+              </CollapsibleTrigger>
+            )}
+          </Collapsible>
         </div>
       );
     }
@@ -145,16 +175,16 @@ export function ToolResult({ toolCall }: ToolResultProps) {
   const formatSystemInfo = (result: any) => {
     if (typeof result === 'object') {
       return (
-        <div className="tool-result-keyvalue">
-          <div className="list-header">
-            <span className="success-icon">✓</span>
-            <span>System Information</span>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={16} className="text-green-600 dark:text-green-400" />
+            <span className="text-sm">System Information</span>
           </div>
-          <dl className="info-list">
+          <dl className="space-y-1 text-sm">
             {Object.entries(result).map(([key, value]) => (
-              <div key={key} className="info-item">
-                <dt>{key}:</dt>
-                <dd>{String(value)}</dd>
+              <div key={key} className="flex gap-2">
+                <dt className="font-medium min-w-[100px]">{key}:</dt>
+                <dd className="text-muted-foreground">{String(value)}</dd>
               </div>
             ))}
           </dl>
@@ -167,32 +197,42 @@ export function ToolResult({ toolCall }: ToolResultProps) {
   const formatShellOutput = (result: any) => {
     const output = typeof result === 'string' ? result : result?.output || '';
     const preview = output.length > 300 ? output.substring(0, 300) + '...' : output;
+    const needsCollapse = output.length > 300;
 
     return (
-      <div className="tool-result-shell">
-        <div className="content-header">
-          <span className="success-icon">✓</span>
-          <span>Command output</span>
-          {output.length > 300 && (
-            <button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="expand-btn"
-            >
-              {isExpanded ? 'Show less' : 'Show all'}
-            </button>
-          )}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <CheckCircle2 size={16} className="text-green-600 dark:text-green-400" />
+          <span className="text-sm">Command output</span>
         </div>
-        <pre className="shell-output">
-          {isExpanded ? output : preview}
-        </pre>
+        {needsCollapse ? (
+          <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+            <pre className="text-sm bg-muted p-2 rounded overflow-x-auto whitespace-pre-wrap">
+              {preview}
+            </pre>
+            <CollapsibleContent>
+              <pre className="text-sm bg-muted p-2 rounded overflow-x-auto whitespace-pre-wrap mt-2">
+                {output.substring(300)}
+              </pre>
+            </CollapsibleContent>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="mt-1 w-full">
+                <ChevronDown className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-180")} />
+                {isExpanded ? 'Show less' : 'Show all'}
+              </Button>
+            </CollapsibleTrigger>
+          </Collapsible>
+        ) : (
+          <pre className="text-sm bg-muted p-2 rounded overflow-x-auto whitespace-pre-wrap">{output}</pre>
+        )}
       </div>
     );
   };
 
-  const formatOpenApp = (result: any) => {
+  const formatOpenApp = (_result: any) => {
     return (
-      <div className="tool-result-success">
-        <span className="success-icon">✓</span>
+      <div className="flex items-center gap-2 text-sm">
+        <CheckCircle2 size={16} className="text-green-600 dark:text-green-400" />
         <span>Opened in default app</span>
       </div>
     );
@@ -203,61 +243,80 @@ export function ToolResult({ toolCall }: ToolResultProps) {
       ? result
       : JSON.stringify(result, null, 2);
     const preview = resultStr.length > 200 ? resultStr.substring(0, 200) + '...' : resultStr;
+    const needsCollapse = resultStr.length > 200;
 
     return (
-      <div className="tool-result-generic">
-        <div className="content-header">
-          <span className="success-icon">✓</span>
-          <span>Result</span>
-          {resultStr.length > 200 && (
-            <button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="expand-btn"
-            >
-              {isExpanded ? 'Show less' : 'Show all'}
-            </button>
-          )}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <CheckCircle2 size={16} className="text-green-600 dark:text-green-400" />
+          <span className="text-sm">Result</span>
         </div>
-        <pre className="generic-output">
-          {isExpanded ? resultStr : preview}
-        </pre>
+        {needsCollapse ? (
+          <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+            <pre className="text-sm bg-muted p-2 rounded overflow-x-auto">
+              {preview}
+            </pre>
+            <CollapsibleContent>
+              <pre className="text-sm bg-muted p-2 rounded overflow-x-auto mt-2">
+                {resultStr.substring(200)}
+              </pre>
+            </CollapsibleContent>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="mt-1 w-full">
+                <ChevronDown className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-180")} />
+                {isExpanded ? 'Show less' : 'Show all'}
+              </Button>
+            </CollapsibleTrigger>
+          </Collapsible>
+        ) : (
+          <pre className="text-sm bg-muted p-2 rounded overflow-x-auto">{resultStr}</pre>
+        )}
       </div>
     );
   };
 
   return (
-    <div className="tool-call">
-      <div className="tool-header">
-        <span className="tool-status">
-          {!hasResult ? '⏳' : isError ? '✗' : '✓'}
-        </span>
-        <span className="tool-name">{toolCall.name}</span>
+    <Card className="p-3 bg-card">
+      {/* Tool header with status badge */}
+      <div className="flex items-center gap-2 mb-2">
+        <Badge variant={!hasResult ? "secondary" : isError ? "destructive" : "default"} className="gap-1">
+          {!hasResult ? (
+            <><Clock size={12} /> Running</>
+          ) : isError ? (
+            <><XCircle size={12} /> Error</>
+          ) : (
+            <><CheckCircle2 size={12} /> Done</>
+          )}
+        </Badge>
+        <span className="text-sm font-medium">{toolCall.name}</span>
         {hasResult && !isError && (
-          <span className="tool-timestamp">
+          <span className="text-sm text-muted-foreground ml-auto">
             {new Date(toolCall.timestamp).toLocaleTimeString()}
           </span>
         )}
       </div>
 
       {/* Show input parameters */}
-      <div className="tool-input">
-        {Object.entries(toolCall.input || {}).map(([key, value]) => (
-          <span key={key} className="input-param">
-            {key}: <span className="param-value">{String(value)}</span>
-          </span>
-        ))}
-      </div>
+      {toolCall.input && Object.keys(toolCall.input).length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-2 text-sm">
+          {Object.entries(toolCall.input).map(([key, value]) => (
+            <span key={key} className="text-muted-foreground">
+              <span className="font-medium">{key}:</span> {String(value)}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Show result or running state */}
       {hasResult ? (
-        <div className="tool-result-wrapper">
+        <div className="mt-2">
           {formatResult()}
         </div>
       ) : (
-        <div className="tool-running">
-          <span className="running-text">Running...</span>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="animate-pulse">Running...</span>
         </div>
       )}
-    </div>
+    </Card>
   );
 }

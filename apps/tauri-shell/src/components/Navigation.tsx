@@ -1,6 +1,10 @@
 import { useState } from 'react'
-import { Moon, Sun, X, Settings, Wrench, MessageSquare } from 'lucide-react'
+import { Moon, Sun, Settings, Wrench, MessageSquare } from 'lucide-react'
 import { Conversations } from './Conversations'
+import { Sheet, SheetContent } from '@/components/ui/sheet'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
 import type { Message } from '../types'
 
 interface NavigationProps {
@@ -28,139 +32,135 @@ export function Navigation({
 }: NavigationProps) {
   const [activeTab, setActiveTab] = useState<Tab>('history')
 
-  if (!isOpen) {
-    return null
-  }
-
   return (
-    <>
-      {/* Backdrop */}
-      <div className="nav-backdrop" onClick={onClose} />
-
-      {/* Navigation Drawer */}
-      <div className="nav-drawer">
-        <div className="nav-header">
-          <div className="nav-tabs">
-            <button
-              className={`nav-tab ${activeTab === 'history' ? 'active' : ''}`}
-              onClick={() => setActiveTab('history')}
-            >
-              <MessageSquare size={18} />
-              History
-            </button>
-            <button
-              className={`nav-tab ${activeTab === 'tools' ? 'active' : ''}`}
-              onClick={() => setActiveTab('tools')}
-            >
-              <Wrench size={18} />
-              Tools
-            </button>
-            <button
-              className={`nav-tab ${activeTab === 'settings' ? 'active' : ''}`}
-              onClick={() => setActiveTab('settings')}
-            >
-              <Settings size={18} />
-              Settings
-            </button>
+    <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent side="left" className="w-80 p-0">
+        <div className="flex flex-col h-full">
+          {/* Tabs Header */}
+          <div className="border-b p-3">
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as Tab)}>
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="history" className="flex items-center gap-1.5">
+                  <MessageSquare size={16} />
+                  <span className="text-sm">History</span>
+                </TabsTrigger>
+                <TabsTrigger value="tools" className="flex items-center gap-1.5">
+                  <Wrench size={16} />
+                  <span className="text-sm">Tools</span>
+                </TabsTrigger>
+                <TabsTrigger value="settings" className="flex items-center gap-1.5">
+                  <Settings size={16} />
+                  <span className="text-sm">Settings</span>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
-          <button onClick={onClose} className="nav-close-btn" title="Close">
-            <X size={20} />
-          </button>
+
+          {/* Content */}
+          <div className="flex-1 overflow-hidden">
+            {/* History Tab */}
+            {activeTab === 'history' && (
+              <div className="h-full">
+                <Conversations
+                  isOpen={true}
+                  onClose={onClose}
+                  currentConversationId={currentConversationId}
+                  onConversationSelect={onConversationSelect}
+                  onNewConversation={onNewConversation}
+                  onLoadMessages={onLoadMessages}
+                  embedded={true}
+                />
+              </div>
+            )}
+
+            {/* Tools Tab */}
+            {activeTab === 'tools' && (
+              <div className="h-full overflow-auto p-4">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="font-semibold mb-2">Available Tools</h3>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Tools available for the assistant to use
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent transition-colors">
+                      <span className="text-sm">📁</span>
+                      <div>
+                        <div className="font-medium text-sm">Filesystem</div>
+                        <div className="text-sm text-muted-foreground">Read, write, and search files</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent transition-colors">
+                      <span className="text-sm">💻</span>
+                      <div>
+                        <div className="font-medium text-sm">System</div>
+                        <div className="text-sm text-muted-foreground">Run commands and get system info</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent transition-colors">
+                      <span className="text-sm">📋</span>
+                      <div>
+                        <div className="font-medium text-sm">Clipboard</div>
+                        <div className="text-sm text-muted-foreground">Read and write clipboard</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent transition-colors">
+                      <span className="text-sm">📸</span>
+                      <div>
+                        <div className="font-medium text-sm">Vision</div>
+                        <div className="text-sm text-muted-foreground">Screenshot and image analysis</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Settings Tab */}
+            {activeTab === 'settings' && (
+              <div className="h-full overflow-auto p-4">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="font-semibold mb-3">Appearance</h3>
+                    <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                      <div>
+                        <div className="font-medium text-sm">Theme</div>
+                        <div className="text-sm text-muted-foreground">
+                          {theme === 'light' ? 'Light mode' : 'Dark mode'}
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={onThemeToggle}
+                        aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+                      >
+                        {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div>
+                    <h3 className="font-semibold mb-3">About</h3>
+                    <div className="space-y-1 text-sm">
+                      <p className="font-medium">Desktop Assistant</p>
+                      <p className="text-muted-foreground">Version 0.1.0</p>
+                      <p className="text-muted-foreground">Model: Claude Sonnet 4.5</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-
-        <div className="nav-content">
-          {/* History Tab - Show Conversations */}
-          {activeTab === 'history' && (
-            <div className="nav-tab-content">
-              <Conversations
-                isOpen={true}
-                onClose={onClose}
-                currentConversationId={currentConversationId}
-                onConversationSelect={onConversationSelect}
-                onNewConversation={onNewConversation}
-                onLoadMessages={onLoadMessages}
-                embedded={true}
-              />
-            </div>
-          )}
-
-          {/* Tools Tab */}
-          {activeTab === 'tools' && (
-            <div className="nav-tab-content">
-              <div className="nav-section">
-                <h3>Available Tools</h3>
-                <p className="nav-section-description">
-                  Tools available for the assistant to use
-                </p>
-
-                <div className="tool-list">
-                  <div className="tool-item">
-                    <div className="tool-icon">📁</div>
-                    <div className="tool-info">
-                      <div className="tool-name">Filesystem</div>
-                      <div className="tool-desc">Read, write, and search files</div>
-                    </div>
-                  </div>
-
-                  <div className="tool-item">
-                    <div className="tool-icon">💻</div>
-                    <div className="tool-info">
-                      <div className="tool-name">System</div>
-                      <div className="tool-desc">Run commands and get system info</div>
-                    </div>
-                  </div>
-
-                  <div className="tool-item">
-                    <div className="tool-icon">📋</div>
-                    <div className="tool-info">
-                      <div className="tool-name">Clipboard</div>
-                      <div className="tool-desc">Read and write clipboard</div>
-                    </div>
-                  </div>
-
-                  <div className="tool-item">
-                    <div className="tool-icon">📸</div>
-                    <div className="tool-info">
-                      <div className="tool-name">Vision</div>
-                      <div className="tool-desc">Screenshot and image analysis</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Settings Tab */}
-          {activeTab === 'settings' && (
-            <div className="nav-tab-content">
-              <div className="nav-section">
-                <h3>Appearance</h3>
-
-                <div className="setting-item">
-                  <div className="setting-info">
-                    <div className="setting-name">Theme</div>
-                    <div className="setting-desc">
-                      {theme === 'light' ? 'Light mode' : 'Dark mode'}
-                    </div>
-                  </div>
-                  <button onClick={onThemeToggle} className="theme-toggle-btn">
-                    {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="nav-section">
-                <h3>About</h3>
-                <div className="about-info">
-                  <p><strong>Desktop Assistant</strong></p>
-                  <p className="about-version">Version 0.1.0</p>
-                  <p className="about-model">Model: Claude Sonnet 4.5</p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </>
+      </SheetContent>
+    </Sheet>
   )
 }

@@ -1,5 +1,6 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { cn } from '@/lib/utils';
 
 interface MarkdownProps {
   content: string;
@@ -12,22 +13,29 @@ export function Markdown({ content }: MarkdownProps) {
     .trim();
 
   return (
-    <div className="markdown">
+    <div className={cn(
+      "prose prose-sm dark:prose-invert max-w-none",
+      "prose-p:my-1 prose-p:leading-relaxed",
+      "prose-pre:bg-muted prose-pre:text-muted-foreground prose-pre:p-3 prose-pre:rounded",
+      "prose-code:text-primary prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-sm",
+      "prose-code:before:content-none prose-code:after:content-none",
+      "prose-a:text-primary prose-a:no-underline hover:prose-a:underline",
+      "prose-strong:font-semibold prose-strong:text-foreground",
+      "prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5"
+    )}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          // Style code blocks
+          // Prevent double-wrapping of code blocks
           code({ node, inline, className, children, ...props }: any) {
             return inline ? (
-              <code className="inline-code" {...props}>
+              <code {...props}>
                 {children}
               </code>
             ) : (
-              <pre className="code-block">
-                <code className={className} {...props}>
-                  {children}
-                </code>
-              </pre>
+              <code className={className} {...props}>
+                {children}
+              </code>
             );
           },
           // Style links

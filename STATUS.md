@@ -1,6 +1,6 @@
 # Development Status
 
-**Last Updated:** November 25, 2025
+**Last Updated:** November 24, 2025
 **Current Phase:** SDK Migration Complete
 **Progress:** 50% (3/8 SDK phases complete + UI complete)
 
@@ -9,30 +9,37 @@
 ## 🎯 Current Focus
 
 ### ✅ Last Task Completed
-**Draggable Header - COMPLETE!**
+**UI Component Refactor - COMPLETE!**
 
-**Window Dragging:**
-- ✅ Added `data-tauri-drag-region` attribute to header
-- ✅ Enabled `startDragging` permission in Tauri allowlist
-- ✅ Header area (hamburger, status, clear buttons) is now draggable
-- ✅ Buttons remain fully interactive while dragging works
-- ✅ Professional desktop app window behavior
+**Color Scheme:**
+- ✅ Changed to pure black (#000) and white (#FFF) for maximum contrast
+- ✅ Light mode: black buttons with white text
+- ✅ Dark mode: white buttons with black text
+- ✅ Updated all foreground/background tokens in styles.css
+
+**Component Cleanup:**
+- ✅ Replaced ToolResult.tsx with shadcn primitives (Badge, Collapsible, Card, Button)
+- ✅ Removed all custom CSS class strings (tool-error, expand-btn, etc.)
+- ✅ Added Lucide icons (CheckCircle2, XCircle, Clock, File, Folder)
+- ✅ Kept domain-specific components (Markdown, Navigation, Conversations)
+- ✅ Fixed unused import in Navigation.tsx
+- ✅ Build passed successfully
 
 **Technical Implementation:**
-- Modified `apps/tauri-shell/src/App.tsx`:
-  - Added `data-tauri-drag-region` to header div (line 306)
-- Modified `apps/tauri-shell/src-tauri/tauri.conf.json`:
-  - Added `"startDragging": true` to window allowlist
-- Rebuild triggered automatically by Tauri dev server
-- Tested and verified: drag works, no console errors
+- Modified `apps/tauri-shell/src/styles.css`:
+  - Light mode: primary = black, foreground = black
+  - Dark mode: primary = white, foreground = white
+- Refactored `apps/tauri-shell/src/components/ToolResult.tsx`:
+  - 264 lines → 322 lines (more structured)
+  - All inline Tailwind utilities, no custom CSS
+  - Collapsible component for long outputs
+  - Badge component for status indicators
+- Fixed `apps/tauri-shell/src/components/Navigation.tsx`:
+  - Removed unused TabsContent import
 
-**Previous Session: Compact Window Mode with Auto-Timeout:**
-- ✅ Window starts at 90px height (input-only, no decorations)
-- ✅ Auto-expands to 600px on first message or conversation load
-- ✅ 5-minute auto-compact timeout with activity tracking
-- ✅ Timer resets on all user interactions
-- ✅ Timer pauses when agent is responding
-- ✅ Clean, bug-free implementation
+**Previous Sessions:**
+- Session 20: Draggable header with data-tauri-drag-region
+- Session 19: Compact window mode (90px → 600px) with 5-minute timeout
 
 ### ⏭️ Next Task
 **Additional UI Polish & Features**
@@ -72,7 +79,8 @@
 ## 💡 Notes for Next Session
 
 ### Context to Remember
-- This is a greenfield project - no existing code yet
+- Core Tauri shell and React UI are implemented and functional
+- Agent runtime using Claude SDK is working with streaming responses
 - Focus on minimal footprint and fast startup
 - Security is critical: sandbox everything
 - UI should feel like ChatGPT desktop but with richer tools
@@ -95,6 +103,52 @@
   3. Set up SQLite persistence layer
   4. Build custom tool script loader
   5. Test all new features end-to-end
+
+---
+
+## 📊 Component Status
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Tauri Shell | ✅ Complete | Window management, tray icon, hotkeys |
+| React UI | ✅ Complete | Chat interface, conversations, markdown |
+| Agent Runtime | ✅ Complete | Claude SDK integration, streaming |
+| IPC Protocol | ✅ Complete | Stdio JSON communication |
+| Compact Mode | ✅ Complete | Auto-expand, 5-min timeout |
+| Draggable Window | ✅ Complete | Header drag region |
+| Color Scheme | ✅ Complete | Pure black & white (#000 / #FFF) |
+| UI Components | ✅ Complete | All using shadcn primitives |
+| SDK Hooks | ⏳ Pending | PreToolUse, PostToolUse, etc. |
+| Permissions System | ⏳ Pending | canUseTool callbacks |
+| Clipboard Tools | ⏳ Pending | Read/write clipboard |
+| Vision Tools | ⏳ Pending | Screenshots, image analysis |
+| Persistence | ⏳ Pending | SQLite conversation storage |
+| Custom Tools | ⏳ Pending | Script loader |
+
+---
+
+## 📝 Recent Changes
+
+### Session 21 (Nov 24, 2025)
+- Fixed date inconsistency in STATUS.md
+- Updated "Context to Remember" to reflect actual project state
+- Added Component Status table for clarity
+- Added Recent Changes section for better tracking
+- **Changed color scheme to pure black & white** (#000 / #FFF)
+- **Refactored ToolResult.tsx** to use shadcn components (Badge, Collapsible, Card)
+- Removed all custom CSS classes, now using Tailwind utilities
+- Fixed unused import in Navigation.tsx
+- Build verified successful
+
+### Session 20 (Previous)
+- ✅ Added draggable header with `data-tauri-drag-region`
+- ✅ Enabled `startDragging` permission in Tauri config
+- ✅ Tested window dragging functionality
+
+### Session 19 (Previous)
+- ✅ Implemented compact window mode (90px → 600px)
+- ✅ Added 5-minute auto-timeout with activity tracking
+- ✅ Timer pauses during agent responses
 
 ---
 

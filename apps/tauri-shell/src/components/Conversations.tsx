@@ -2,6 +2,10 @@ import { useState, useEffect } from 'react'
 import { MessageSquare, Plus, Trash2, X } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/tauri'
 import { listen } from '@tauri-apps/api/event'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { cn } from '@/lib/utils'
 import type { Message } from '../types'
 
 interface Conversation {
@@ -169,55 +173,79 @@ export function Conversations({
   // If embedded, render without backdrop and sidebar wrapper
   if (embedded) {
     return (
-      <>
-        <div className="conversations-header-embedded">
-          <button
+      <div className="flex flex-col h-full">
+        {/* New conversation button */}
+        <div className="p-3 border-b">
+          <Button
             onClick={handleNewConversation}
-            className="conversations-new-btn"
-            title="New conversation"
+            className="w-full"
+            aria-label="Start new conversation"
           >
-            <Plus size={18} />
-            New Chat
-          </button>
+            <Plus size={16} className="mr-2" />
+            New Conversation
+          </Button>
         </div>
 
-        <div className="conversations-list">
-          {loading ? (
-            <div className="conversations-loading">Loading...</div>
-          ) : conversations.length === 0 ? (
-            <div className="conversations-empty">
-              <MessageSquare size={48} opacity={0.3} />
-              <p>No conversations yet</p>
-              <p className="conversations-empty-hint">
-                Start chatting to create your first conversation
-              </p>
-            </div>
-          ) : (
-            conversations.map(conv => (
-              <div
-                key={conv.id}
-                className={`conversation-item ${conv.id === currentConversationId ? 'active' : ''}`}
-                onClick={() => handleSelectConversation(conv.id)}
-              >
-                <div className="conversation-item-main">
-                  <MessageSquare size={16} />
-                  <div className="conversation-item-content">
-                    <div className="conversation-item-title">{conv.title}</div>
-                    <div className="conversation-item-date">{formatDate(conv.updated_at)}</div>
-                  </div>
-                </div>
-                <button
-                  className="conversation-item-delete"
-                  onClick={(e) => handleDeleteConversation(conv.id, e)}
-                  title="Delete conversation"
-                >
-                  <Trash2 size={14} />
-                </button>
+        {/* Conversation list */}
+        <ScrollArea className="flex-1">
+          <div className="p-3 space-y-2">
+            {loading ? (
+              <div className="flex justify-center py-8 text-muted-foreground">Loading...</div>
+            ) : conversations.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <MessageSquare size={48} className="opacity-30 mb-4" />
+                <p className="font-medium">No conversations yet</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Start chatting to create your first conversation
+                </p>
               </div>
-            ))
-          )}
-        </div>
-      </>
+            ) : (
+              conversations.map(conv => (
+                <Card
+                  key={conv.id}
+                  className={cn(
+                    "group cursor-pointer transition-all hover:shadow-md",
+                    conv.id === currentConversationId && "ring-2 ring-primary"
+                  )}
+                  onClick={() => handleSelectConversation(conv.id)}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Conversation: ${conv.title}`}
+                  aria-selected={conv.id === currentConversationId}
+                >
+                  <div className="flex items-center justify-between p-3 gap-2">
+                    <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                      <MessageSquare
+                        size={16}
+                        className={cn(
+                          "shrink-0 mt-0.5",
+                          conv.id === currentConversationId ? "text-primary" : "text-muted-foreground"
+                        )}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium line-clamp-2">{conv.title}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {formatDate(conv.updated_at)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="opacity-0 group-hover:opacity-100 hover:bg-destructive hover:text-destructive-foreground transition-opacity shrink-0"
+                      onClick={(e) => handleDeleteConversation(conv.id, e)}
+                      aria-label="Delete conversation"
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  </div>
+                </Card>
+              ))
+            )}
+          </div>
+        </ScrollArea>
+      </div>
     )
   }
 

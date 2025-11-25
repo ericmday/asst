@@ -1,10 +1,15 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { X, Send, Trash2, Menu } from 'lucide-react'
+import { X, Trash2, Menu } from 'lucide-react'
 import { appWindow, LogicalSize } from '@tauri-apps/api/window'
 import { useAgent } from './useAgent'
 import { ToolResult } from './components/ToolResult'
 import { Markdown } from './components/Markdown'
 import { Navigation } from './components/Navigation'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import { Card } from '@/components/ui/card'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { cn } from '@/lib/utils'
 import type { ImageAttachment } from './types'
 
 // Window sizes
@@ -287,7 +292,7 @@ function App() {
   }
 
   return (
-    <div className="app">
+    <div className="flex flex-col h-screen bg-background text-foreground">
       <Navigation
         isOpen={showNavigation}
         onClose={() => {
@@ -302,147 +307,200 @@ function App() {
         onLoadMessages={loadMessages}
       />
 
-      {isExpanded && (
-        <div className="header" data-tauri-drag-region>
-          <button onClick={() => {
-            setShowNavigation(true)
-            resetInactivityTimer()
-          }} className="hamburger-btn" title="Menu">
+      {isExpanded && messages.length > 0 && (
+        <div className="flex items-center justify-between px-4 py-3 border-b bg-background" data-tauri-drag-region>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              setShowNavigation(true)
+              resetInactivityTimer()
+            }}
+            aria-label="Open menu"
+          >
             <Menu size={20} />
-          </button>
-          <div className="header-actions">
-            <span className={`status ${isAgentReady ? 'ready' : 'loading'}`}>
-              {isAgentReady ? '● Ready' : '○ Starting...'}
+          </Button>
+          <div className="flex items-center gap-3">
+            <span className={cn(
+              "flex items-center gap-1.5 text-sm font-medium",
+              isAgentReady ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
+            )}>
+              {isAgentReady ? '●' : '○'} {isAgentReady ? 'Ready' : 'Starting...'}
             </span>
             {messages.length > 0 && (
-              <button onClick={() => {
-                clearHistory()
-                resetInactivityTimer()
-              }} className="clear-btn">
-                <Trash2 size={16} />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  clearHistory()
+                  resetInactivityTimer()
+                }}
+                aria-label="Clear conversation history"
+              >
+                <Trash2 size={16} className="mr-1.5" />
                 Clear
-              </button>
+              </Button>
             )}
           </div>
         </div>
       )}
 
-      <div className="messages" style={{ display: isExpanded ? 'flex' : 'none' }}>
+      <ScrollArea
+        className="flex-1 px-4"
+        style={{ display: isExpanded && messages.length > 0 ? 'block' : 'none' }}
+        role="log"
+        aria-live="polite"
+        aria-label="Chat messages"
+      >
         {messages.length === 0 ? (
-          <div className="empty-state">
-            <h2>What can I help you with?</h2>
-            <p>I can help you:</p>
-            <ul>
-              <li>List, read, and write files</li>
-              <li>Search for files</li>
-              <li>Run shell commands</li>
-              <li>Get system information</li>
-              <li>And more!</li>
-            </ul>
-            <div className="hints">
-              <p className="hint">Enter to send • Shift+Enter for new line</p>
-              <p className="hint">Cmd+Shift+Space to toggle • Cmd+N to clear</p>
+          <div className="flex flex-col items-center justify-center h-full text-center px-4 py-8">
+            <h2 className="text-sm font-semibold mb-4">What can I help you with?</h2>
+            <div className="text-muted-foreground space-y-2 mb-6">
+              <p>I can help you:</p>
+              <ul className="text-sm space-y-1">
+                <li>List, read, and write files</li>
+                <li>Search for files</li>
+                <li>Run shell commands</li>
+                <li>Get system information</li>
+                <li>And more!</li>
+              </ul>
+            </div>
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p>Enter to send • Shift+Enter for new line</p>
+              <p>Cmd+Shift+Space to toggle • Cmd+N to clear</p>
             </div>
           </div>
         ) : (
-          <>
+          <div className="py-4 space-y-3">
             {messages.map((msg) => (
-              <div key={msg.id} className={`message ${msg.role}`}>
-                {msg.error ? (
-                  <div className="error">
-                    <strong>Error:</strong> {msg.error}
-                  </div>
-                ) : (
-                  <>
-                    <div className="message-content">
-                      {msg.role === 'assistant' ? (
-                        <>
-                          <Markdown content={msg.content} />
-                          {msg.isStreaming && <span className="cursor">▊</span>}
-                        </>
-                      ) : (
-                        msg.content
-                      )}
-                    </div>
-                    {/* Show images if present */}
-                    {msg.images && msg.images.length > 0 && (
-                      <div className="message-images">
-                        {msg.images.map((img, idx) => (
-                          <img
-                            key={idx}
-                            src={`data:${img.mimeType};base64,${img.data}`}
-                            alt={img.name || `Image ${idx + 1}`}
-                            className="message-image"
-                            title={img.name || `Image ${idx + 1}`}
-                          />
-                        ))}
-                      </div>
-                    )}
-                    {/* Show tool calls for this message */}
-                    {toolCalls.filter(tc => tc.id.includes(msg.id)).map(tc => (
-                      <ToolResult key={tc.id} toolCall={tc} />
-                    ))}
-                  </>
+              <div
+                key={msg.id}
+                className={cn(
+                  "flex animate-fadeIn",
+                  msg.role === 'user' && "justify-end",
+                  msg.role === 'assistant' && "justify-start"
                 )}
+              >
+                <Card
+                  className={cn(
+                    "max-w-[85%] p-3 text-sm",
+                    msg.role === 'user' && "bg-primary text-primary-foreground",
+                    msg.role === 'assistant' && "bg-card"
+                  )}
+                  role="article"
+                  aria-label={`${msg.role === 'user' ? 'Your' : 'Assistant'} message`}
+                >
+                  {msg.error ? (
+                    <div className="flex items-start gap-2 p-2 bg-destructive/10 text-destructive rounded border-l-4 border-destructive">
+                      <strong className="font-semibold">Error:</strong>
+                      <span>{msg.error}</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="break-words">
+                        {msg.role === 'assistant' ? (
+                          <>
+                            <Markdown content={msg.content} />
+                            {msg.isStreaming && <span className="animate-blink ml-0.5" aria-label="Streaming">▊</span>}
+                          </>
+                        ) : (
+                          <div className="whitespace-pre-wrap">{msg.content}</div>
+                        )}
+                      </div>
+                      {/* Show images if present */}
+                      {msg.images && msg.images.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {msg.images.map((img, idx) => (
+                            <img
+                              key={idx}
+                              src={`data:${img.mimeType};base64,${img.data}`}
+                              alt={img.name || `Image ${idx + 1}`}
+                              className="max-w-full rounded border"
+                              title={img.name || `Image ${idx + 1}`}
+                            />
+                          ))}
+                        </div>
+                      )}
+                      {/* Show tool calls for this message */}
+                      {toolCalls.filter(tc => tc.id.includes(msg.id)).map(tc => (
+                        <ToolResult key={tc.id} toolCall={tc} />
+                      ))}
+                    </>
+                  )}
+                </Card>
               </div>
             ))}
             {/* Show "Thinking..." indicator when loading and no assistant response yet */}
             {isLoading && messages.length > 0 && messages[messages.length - 1].role === 'user' && (
-              <div className="message assistant thinking">
-                <div className="message-content">
-                  <span className="thinking-text">Thinking</span>
-                  <span className="thinking-dots">
-                    <span>.</span><span>.</span><span>.</span>
+              <Card className="max-w-[85%] p-3 bg-muted">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>Thinking</span>
+                  <span className="flex gap-1">
+                    <span className="animate-thinkingDot1">.</span>
+                    <span className="animate-thinkingDot2">.</span>
+                    <span className="animate-thinkingDot3">.</span>
                   </span>
                 </div>
-              </div>
+              </Card>
             )}
             <div ref={messagesEndRef} />
-          </>
-        )}
-      </div>
-
-      <div className="input-area">
-        {pastedImages.length > 0 && (
-          <div className="image-preview-container">
-            {pastedImages.map((img, index) => (
-              <div key={index} className="image-preview">
-                <img
-                  src={`data:${img.mimeType};base64,${img.data}`}
-                  alt={img.name || 'Pasted image'}
-                />
-                <button
-                  className="remove-image"
-                  onClick={() => removeImage(index)}
-                  title="Remove image"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            ))}
           </div>
+        )}
+      </ScrollArea>
+
+      <div className="relative flex flex-col">
+        {pastedImages.length > 0 && (
+          <Card className="m-2 p-2">
+            <div className="flex gap-2 flex-wrap">
+              {pastedImages.map((img, index) => (
+                <div key={index} className="relative group">
+                  <img
+                    src={`data:${img.mimeType};base64,${img.data}`}
+                    alt={img.name || 'Pasted image'}
+                    className="w-20 h-20 object-cover rounded border"
+                  />
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className="absolute -top-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => removeImage(index)}
+                    aria-label="Remove image"
+                  >
+                    <X size={14} />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </Card>
         )}
         {/* Slash command autocomplete menu */}
         {showSlashMenu && filteredCommands.length > 0 && (
-          <div className="slash-menu" ref={slashMenuRef}>
-            {filteredCommands.map((cmd, index) => (
-              <div
-                key={cmd.command}
-                className={`slash-menu-item ${index === selectedCommandIndex ? 'selected' : ''}`}
-                onClick={() => selectCommand(cmd.command)}
-                onMouseEnter={() => setSelectedCommandIndex(index)}
-              >
-                <div className="slash-command-name">{cmd.command}</div>
-                <div className="slash-command-desc">{cmd.description}</div>
-                {cmd.example && (
-                  <div className="slash-command-example">{cmd.example}</div>
-                )}
-              </div>
-            ))}
-          </div>
+          <Card className="absolute bottom-full left-3 right-3 mb-1 z-50 max-h-64 overflow-auto" ref={slashMenuRef}>
+            <div className="p-1">
+              {filteredCommands.map((cmd, index) => (
+                <div
+                  key={cmd.command}
+                  className={cn(
+                    "flex flex-col items-start gap-1 px-3 py-2 rounded cursor-pointer transition-colors",
+                    index === selectedCommandIndex ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"
+                  )}
+                  onClick={() => selectCommand(cmd.command)}
+                  onMouseEnter={() => setSelectedCommandIndex(index)}
+                >
+                  <div className="font-semibold font-mono text-sm">{cmd.command}</div>
+                  <div className="text-sm text-muted-foreground">{cmd.description}</div>
+                  {cmd.example && (
+                    <div className="text-sm font-mono text-muted-foreground italic mt-0.5">
+                      {cmd.example}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Card>
         )}
-        <div className="input-row">
-          <textarea
+        <div className="p-3">
+          <Textarea
             ref={textareaRef}
             value={inputValue}
             onChange={handleInputChange}
@@ -450,21 +508,10 @@ function App() {
             onPaste={handlePaste}
             placeholder={isExpanded ? (isAgentReady ? "Type a message or paste an image..." : "Starting agent...") : "Assistant"}
             disabled={!isAgentReady || isLoading}
+            className="min-h-[42px] max-h-[120px] resize-none rounded-full px-4"
             rows={1}
+            aria-label="Message input"
           />
-          <button
-            onClick={handleSend}
-            disabled={!isAgentReady || isLoading || (!inputValue.trim() && pastedImages.length === 0)}
-            className="send-btn"
-          >
-            <span className={`status-dot ${isAgentReady ? 'ready' : 'loading'}`}></span>
-            {isLoading ? 'Sending...' : (
-              <>
-                <Send size={16} />
-                Send
-              </>
-            )}
-          </button>
         </div>
       </div>
     </div>
