@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
 import { listen } from '@tauri-apps/api/event';
 import type { AgentResponse, Message, ToolCall, ImageAttachment } from './types';
@@ -8,6 +8,7 @@ export function useAgent() {
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
   const [isAgentReady, setIsAgentReady] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const conversationVersionRef = useRef(0);
 
   // Initialize agent on mount
   useEffect(() => {
@@ -26,6 +27,7 @@ export function useAgent() {
   // Listen to agent responses
   useEffect(() => {
     const unlisten = listen<AgentResponse>('agent_response', (event) => {
+      const currentVersion = conversationVersionRef.current; // Capture version at start
       const response = event.payload;
       console.log('Received agent response:', response);
 
@@ -35,6 +37,7 @@ export function useAgent() {
       }
 
       if (response.type === 'token') {
+        if (currentVersion !== conversationVersionRef.current) return; // Guard against stale responses
         setMessages((prev) => {
           const lastMsg = prev[prev.length - 1];
 
@@ -66,6 +69,7 @@ export function useAgent() {
       }
 
       if (response.type === 'tool_use') {
+        if (currentVersion !== conversationVersionRef.current) return; // Guard against stale responses
         setToolCalls((prev) => [
           ...prev,
           {
@@ -79,6 +83,7 @@ export function useAgent() {
       }
 
       if (response.type === 'tool_result') {
+        if (currentVersion !== conversationVersionRef.current) return; // Guard against stale responses
         setToolCalls((prev) =>
           prev.map((call) =>
             call.id === response.data.tool_use_id
@@ -90,6 +95,7 @@ export function useAgent() {
       }
 
       if (response.type === 'done') {
+        if (currentVersion !== conversationVersionRef.current) return; // Guard against stale responses
         setMessages((prev) => {
           const lastMsg = prev[prev.length - 1];
           if (lastMsg && lastMsg.id === response.id) {
@@ -108,6 +114,7 @@ export function useAgent() {
       }
 
       if (response.type === 'error') {
+        if (currentVersion !== conversationVersionRef.current) return; // Guard against stale responses
         setMessages((prev) => {
           const lastMsg = prev[prev.length - 1];
           if (lastMsg && lastMsg.id === response.id) {
@@ -191,6 +198,7 @@ export function useAgent() {
   const clearHistory = useCallback(async () => {
     try {
       await invoke('clear_history');
+      conversationVersionRef.current++; // Invalidate old responses
       setMessages([]);
       setToolCalls([]);
     } catch (error) {
@@ -199,6 +207,7 @@ export function useAgent() {
   }, []);
 
   const loadMessages = useCallback((loadedMessages: Message[]) => {
+    conversationVersionRef.current++; // Invalidate old responses
     setMessages(loadedMessages);
     setToolCalls([]);
   }, []);

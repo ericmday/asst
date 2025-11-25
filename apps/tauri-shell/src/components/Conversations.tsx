@@ -101,7 +101,7 @@ export function Conversations({
     return () => {
       unlisten.then((fn) => fn())
     }
-  }, [])
+  }, [onLoadMessages])
 
   const loadConversations = async () => {
     try {

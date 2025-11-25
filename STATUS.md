@@ -1,7 +1,7 @@
 # Development Status
 
-**Last Updated:** November 24, 2025
-**Current Phase:** SDK Migration Complete
+**Last Updated:** November 25, 2025
+**Current Phase:** Bug Fixes & Stability
 **Progress:** 50% (3/8 SDK phases complete + UI complete)
 
 ---
@@ -9,56 +9,58 @@
 ## 🎯 Current Focus
 
 ### ✅ Last Task Completed
-**UI Component Refactor - COMPLETE!**
+**Conversation Loading Bug Fix - PARTIAL**
 
-**Color Scheme:**
-- ✅ Changed to pure black (#000) and white (#FFF) for maximum contrast
-- ✅ Light mode: black buttons with white text
-- ✅ Dark mode: white buttons with black text
-- ✅ Updated all foreground/background tokens in styles.css
+**Problem Identified:**
+- Old messages from previous conversations were appearing when loading new conversations
+- Race condition: Event listener processing stale responses from previous conversation
+- Root cause: Global event listener without conversation-level filtering
 
-**Component Cleanup:**
-- ✅ Replaced ToolResult.tsx with shadcn primitives (Badge, Collapsible, Card, Button)
-- ✅ Removed all custom CSS class strings (tool-error, expand-btn, etc.)
-- ✅ Added Lucide icons (CheckCircle2, XCircle, Clock, File, Folder)
-- ✅ Kept domain-specific components (Markdown, Navigation, Conversations)
-- ✅ Fixed unused import in Navigation.tsx
-- ✅ Build passed successfully
+**Fix Implemented:**
+- ✅ Added version counter (useRef) to track conversation changes
+- ✅ Version increments on `loadMessages()` and `clearHistory()`
+- ✅ All event handlers (token, tool_use, tool_result, done, error) now guard against stale responses
+- ✅ Fixed Conversations.tsx dependency array to include onLoadMessages
+- ✅ Modified files:
+  - `apps/tauri-shell/src/useAgent.ts` - Added version counter and guards
+  - `apps/tauri-shell/src/components/Conversations.tsx` - Fixed dependencies
 
-**Technical Implementation:**
-- Modified `apps/tauri-shell/src/styles.css`:
-  - Light mode: primary = black, foreground = black
-  - Dark mode: primary = white, foreground = white
-- Refactored `apps/tauri-shell/src/components/ToolResult.tsx`:
-  - 264 lines → 322 lines (more structured)
-  - All inline Tailwind utilities, no custom CSS
-  - Collapsible component for long outputs
-  - Badge component for status indicators
-- Fixed `apps/tauri-shell/src/components/Navigation.tsx`:
-  - Removed unused TabsContent import
+**Status:** 🚧 INCOMPLETE - Conversation thread not properly clearing between loads
+- Version counter prevents cross-contamination of streaming responses
+- BUT: Loaded conversation messages still show old content
+- Need to investigate: SDK session management, message persistence, or deeper state issues
+- Next session: Consider Approach 2 (conversation-scoped IPC) or Approach 3 (state machine)
 
 **Previous Sessions:**
+- Session 21: Integrated shadcn/ui components with Tailwind CSS
 - Session 20: Draggable header with data-tauri-drag-region
 - Session 19: Compact window mode (90px → 600px) with 5-minute timeout
 
 ### ⏭️ Next Task
-**Additional UI Polish & Features**
+**Fix Conversation Loading Bug (Priority: HIGH)**
 
-- [ ] Add visual timer countdown indicator (optional)
-- [ ] Configurable timeout duration in Settings
-- [ ] Window position memory (remember where user placed it)
-- [ ] Keyboard shortcut to manually toggle compact/expanded
+**Issue:** Old messages persist when switching conversations despite version counter fix
+
+**Investigation Needed:**
+1. Check if SDK session is properly clearing between conversation loads
+2. Verify database message retrieval is correct
+3. Investigate if React state is truly being reset
+4. Consider implementing conversation-scoped IPC (Approach 2 from plan)
+5. Review message ID generation - could be collision causing matches
+
+**Reference:** See `/Users/ericday/.claude/plans/agile-dreaming-goldwasser.md` for detailed analysis
+
+**Alternative Approaches if Current Fix Fails:**
+- [ ] Approach 2: Add conversation_id to all IPC protocol messages
+- [ ] Approach 3: Implement Zustand state machine with atomic transitions
+- [ ] Deep dive: SDK adapter session/conversation management
+
+**Other Pending Tasks:**
+- [ ] Add visual timer countdown indicator
+- [ ] Window position memory
 - [ ] Real-time conversation title updates in sidebar
 - [ ] Search/filter conversations
-- [ ] Keyboard shortcuts for navigation (Cmd+1/2/3 for tabs)
-
-**Option B: SDK Migration Phase 4+**
-- [ ] Implement SDK hooks (PreToolUse, PostToolUse, SessionStart, SessionEnd)
-- [ ] Add permission system with canUseTool callback
-- [ ] Integrate persistence with SDK hooks
-- [ ] Test advanced SDK features (forkSession, resumeSessionAt)
-
-**Reference:** See [docs/08-sdk-migration-plan.md](./docs/08-sdk-migration-plan.md) for SDK migration guide
+- [ ] SDK Migration Phase 4+ (hooks, permissions, advanced features)
 
 ---
 
@@ -129,16 +131,29 @@
 
 ## 📝 Recent Changes
 
+### Session 22 (Nov 25, 2025)
+- **Investigated conversation loading bug** with comprehensive multi-agent analysis
+- **Implemented version counter fix** (Approach 1: Minimal State Guard)
+  - Added `conversationVersionRef` to useAgent.ts
+  - Guards on all 5 event handler types (token, tool_use, tool_result, done, error)
+  - Version increments on loadMessages() and clearHistory()
+  - Fixed Conversations.tsx dependency array
+- **Status: Partial fix** - Prevents streaming response cross-contamination but thread still not clearing
+- Created detailed implementation plan with 3 approaches evaluated
+- **Files modified:**
+  - `apps/tauri-shell/src/useAgent.ts` (+11 lines: version counter and guards)
+  - `apps/tauri-shell/src/components/Conversations.tsx` (+1 line: dependency fix)
+- **Next:** Need deeper investigation into SDK session management or implement Approach 2/3
+
 ### Session 21 (Nov 24, 2025)
-- Fixed date inconsistency in STATUS.md
-- Updated "Context to Remember" to reflect actual project state
-- Added Component Status table for clarity
-- Added Recent Changes section for better tracking
-- **Changed color scheme to pure black & white** (#000 / #FFF)
-- **Refactored ToolResult.tsx** to use shadcn components (Badge, Collapsible, Card)
-- Removed all custom CSS classes, now using Tailwind utilities
-- Fixed unused import in Navigation.tsx
-- Build verified successful
+- **Integrated shadcn/ui component library** with Tailwind CSS
+- Added 18 shadcn/ui components (Badge, Button, Card, Dialog, Tabs, etc.)
+- Configured Tailwind with path aliases (@/) and PostCSS
+- Refactored all major components (ToolResult, Navigation, Conversations, Markdown)
+- Removed 1500+ lines of legacy CSS, replaced with Tailwind utilities
+- Changed color scheme to pure black & white (#000 / #FFF)
+- Added Lucide React icons for consistent iconography
+- **Committed and pushed to GitHub** (commit dd3ed47)
 
 ### Session 20 (Previous)
 - ✅ Added draggable header with `data-tauri-drag-region`
