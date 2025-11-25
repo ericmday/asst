@@ -9,29 +9,27 @@
 ## 🎯 Current Focus
 
 ### ✅ Last Task Completed
-**Conversation Loading Bug Fix - PARTIAL**
+**macOS Transparency Implementation - COMPLETE**
 
-**Problem Identified:**
-- Old messages from previous conversations were appearing when loading new conversations
-- Race condition: Event listener processing stale responses from previous conversation
-- Root cause: Global event listener without conversation-level filtering
+**Implemented:**
+- ✅ Added macOS dependencies (cocoa 0.25, objc 0.2) to Cargo.toml
+- ✅ Implemented automatic transparency setup in `setup_handler()`
+  - Set window opacity to false via `setOpaque:false`
+  - Set background color to clear via `NSColor::clearColor`
+- ✅ Added `toggle_transparent` command for runtime transparency control
+  - Enable/disable transparency on demand
+  - Accessible via `invoke('toggle_transparent', { enable: true/false })`
+- ✅ Already had: transparent window config, CSS transparency, decorations disabled
 
-**Fix Implemented:**
-- ✅ Added version counter (useRef) to track conversation changes
-- ✅ Version increments on `loadMessages()` and `clearHistory()`
-- ✅ All event handlers (token, tool_use, tool_result, done, error) now guard against stale responses
-- ✅ Fixed Conversations.tsx dependency array to include onLoadMessages
-- ✅ Modified files:
-  - `apps/tauri-shell/src/useAgent.ts` - Added version counter and guards
-  - `apps/tauri-shell/src/components/Conversations.tsx` - Fixed dependencies
-
-**Status:** 🚧 INCOMPLETE - Conversation thread not properly clearing between loads
-- Version counter prevents cross-contamination of streaming responses
-- BUT: Loaded conversation messages still show old content
-- Need to investigate: SDK session management, message persistence, or deeper state issues
-- Next session: Consider Approach 2 (conversation-scoped IPC) or Approach 3 (state machine)
+**Status:** ✅ COMPLETE - All transparency features from guide implemented (5/5)
+- Config-level transparency enabled in tauri.conf.json
+- CSS transparency for webview background
+- macOS-specific Objective-C transparency setup
+- Runtime toggle command available
+- Note: Vibrancy support skipped (no working crate available)
 
 **Previous Sessions:**
+- Session 22: Conversation loading bug fix (partial)
 - Session 21: Integrated shadcn/ui components with Tailwind CSS
 - Session 20: Draggable header with data-tauri-drag-region
 - Session 19: Compact window mode (90px → 600px) with 5-minute timeout
@@ -120,6 +118,7 @@
 | Draggable Window | ✅ Complete | Header drag region |
 | Color Scheme | ✅ Complete | Pure black & white (#000 / #FFF) |
 | UI Components | ✅ Complete | All using shadcn primitives |
+| macOS Transparency | ✅ Complete | NSWindow setup, toggle command |
 | SDK Hooks | ⏳ Pending | PreToolUse, PostToolUse, etc. |
 | Permissions System | ⏳ Pending | canUseTool callbacks |
 | Clipboard Tools | ⏳ Pending | Read/write clipboard |
@@ -130,6 +129,19 @@
 ---
 
 ## 📝 Recent Changes
+
+### Session 23 (Nov 25, 2025)
+- **Implemented macOS window transparency** (COMPLETE)
+- Added macOS-specific dependencies (cocoa 0.25, objc 0.2)
+- Implemented automatic transparency setup using Objective-C runtime
+  - `setOpaque:false` to enable window transparency
+  - `setBackgroundColor:clearColor` for transparent background
+- Added `toggle_transparent` command for runtime control
+- **Files modified:**
+  - `apps/tauri-shell/src-tauri/Cargo.toml` (added cocoa/objc dependencies)
+  - `apps/tauri-shell/src-tauri/src/main.rs` (transparency setup and toggle command)
+- All transparency features from guide implemented (5/5)
+- App now supports fully transparent window on macOS
 
 ### Session 22 (Nov 25, 2025)
 - **Investigated conversation loading bug** with comprehensive multi-agent analysis

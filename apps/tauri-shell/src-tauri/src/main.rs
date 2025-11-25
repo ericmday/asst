@@ -10,6 +10,13 @@ use tauri::{
 };
 use tokio::sync::Mutex;
 
+#[cfg(target_os = "macos")]
+use cocoa::appkit::{NSWindow, NSColor};
+#[cfg(target_os = "macos")]
+use cocoa::base::id;
+#[cfg(target_os = "macos")]
+use objc::{msg_send, sel, sel_impl};
+
 // State to hold the agent process
 struct AppState {
     agent: Arc<Mutex<Option<AgentProcess>>>,
@@ -183,6 +190,31 @@ async fn delete_conversation(state: State<'_, AppState>, conversation_id: String
     }
 }
 
+#[tauri::command]
+fn toggle_transparent(window: tauri::Window, enable: bool) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    unsafe {
+        use objc::runtime::Class;
+
+        let ns_window = window.ns_window().map_err(|e| e.to_string())? as id;
+        let color_class = Class::get("NSColor").unwrap();
+        let color: id = if enable {
+            msg_send![color_class, clearColor]
+        } else {
+            msg_send![color_class, windowBackgroundColor]
+        };
+        let _: () = msg_send![ns_window, setBackgroundColor: color];
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (window, enable);
+        return Err("Transparency toggle is only supported on macOS".to_string());
+    }
+
+    Ok(())
+}
+
 fn main() {
     // Build system tray menu
     let tray_menu = SystemTrayMenu::new()
@@ -203,7 +235,8 @@ fn main() {
             list_conversations,
             load_conversation,
             new_conversation,
-            delete_conversation
+            delete_conversation,
+            toggle_transparent
         ])
         .system_tray(tray)
         .on_system_tray_event(handle_tray_event)
@@ -221,6 +254,22 @@ fn main() {
 
 fn setup_handler(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let main_window = app.get_window("main").unwrap();
+
+    // Configure macOS transparency
+    #[cfg(target_os = "macos")]
+    unsafe {
+        use objc::runtime::Class;
+
+        let ns_window = main_window.ns_window()? as id;
+
+        // Get NSColor class
+        let color_class = Class::get("NSColor").unwrap();
+        let clear_color: id = msg_send![color_class, clearColor];
+
+        // Enable transparency
+        let _: () = msg_send![ns_window, setOpaque: false];
+        let _: () = msg_send![ns_window, setBackgroundColor: clear_color];
+    }
 
     // Register global shortcut (Cmd+Shift+Space)
     let window_clone = main_window.clone();
