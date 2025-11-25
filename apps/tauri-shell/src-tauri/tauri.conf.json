@@ -30,7 +30,8 @@
       },
       "window": {
         "all": false,
-        "setSize": true
+        "setSize": true,
+        "startDragging": true
       }
     },
     "bundle": {

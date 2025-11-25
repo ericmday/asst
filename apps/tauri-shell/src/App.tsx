@@ -303,7 +303,7 @@ function App() {
       />
 
       {isExpanded && (
-        <div className="header">
+        <div className="header" data-tauri-drag-region>
           <button onClick={() => {
             setShowNavigation(true)
             resetInactivityTimer()
