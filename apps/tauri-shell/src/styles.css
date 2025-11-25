@@ -53,8 +53,15 @@
   * {
     @apply border-border;
   }
+  html {
+    background: transparent !important;
+  }
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    background: transparent !important;
+  }
+  #root {
+    background: transparent !important;
   }
 }
 

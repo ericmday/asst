@@ -61,11 +61,12 @@
         "title": "Desktop Assistant",
         "label": "main",
         "width": 360,
-        "height": 90,
+        "height": 60,
         "resizable": true,
         "fullscreen": false,
         "visible": false,
         "decorations": false,
+        "transparent": true,
         "alwaysOnTop": false,
         "center": true,
         "skipTaskbar": true

@@ -79,3 +79,4 @@ desktop-assistant/
 1. Update [STATUS.md](./STATUS.md) with progress
 2. Log changes in diff/changelog section
 3. Set "Next Task"
+- always restart the app after a change
