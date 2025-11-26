@@ -361,7 +361,7 @@ function App() {
   }
 
   return (
-    <div className={cn("flex flex-col h-screen text-foreground", isExpanded && "bg-background rounded-sm overflow-hidden")}>
+    <div className={cn("flex flex-col h-screen text-foreground overflow-hidden", isExpanded && "bg-background rounded-sm")}>
       <Navigation
         isOpen={showNavigation}
         onClose={() => {

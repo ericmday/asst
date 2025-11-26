@@ -1,6 +1,6 @@
 # Development Status
 
-**Last Updated:** November 26, 2025
+**Last Updated:** November 26, 2025 (Session 29)
 **Current Phase:** UI Polish & Feature Enhancements
 **Progress:** 50% (3/8 SDK phases complete + UI complete)
 
@@ -12,71 +12,78 @@
 **Ready for Next Feature**
 
 **Status:** All Recent Features Complete
+- ✅ Terminal integrated into navigation drawer
+- ✅ Icon-based navigation tabs
 - ✅ Pin button implemented and working
 - ✅ Interrupt feature implemented end-to-end
 - ✅ Agent @mention functionality with autocomplete
-- ✅ Agents section in Settings tab
+- ✅ Chat panel bounce fix (macOS WebKit scrolling)
 
 ### ✅ Last Task Completed
+**Chat Panel Bounce Fix - COMPLETE**
+
+**Implemented:**
+- ✅ Fixed macOS WebKit momentum scrolling causing chat content to bounce
+- ✅ Applied aggressive CSS lockdown with `position: fixed` on html, body, #root
+- ✅ Changed `overscroll-behavior` from `contain` to `none` at window level
+- ✅ Preserved ScrollArea scrolling functionality while preventing window-level bounce
+- ✅ Chat content no longer disappears into transparent overflow areas
+- **Root cause:** Previous CSS used `contain` instead of `none` - issue was window-level WebKit momentum scroll, not DOM element scroll
+- **Solution:** `position: fixed` physically locks viewport, preventing native WebKit bounce
+- **Files modified:**
+  - `apps/tauri-shell/src/styles.css` (lines 58-105: window scroll lockdown)
+    - Added `position: fixed` to html, body, #root
+    - Changed `overscroll-behavior: contain` to `overscroll-behavior: none`
+    - Added explicit `overflow-y: auto` to ScrollArea viewports
+
+**Status:** ✅ COMPLETE - Window bounce eliminated, chat panel locked, ScrollArea scrolling preserved
+
+**Previous Task:**
+**Terminal Sidebar Integration - COMPLETE**
+
+**Implemented:**
+- ✅ Moved terminal from separate sidebar into navigation drawer as 4th tab
+- ✅ Converted all navigation tabs to icon-only design (18px icons)
+  - MessageSquare icon for History tab
+  - Wrench icon for Tools tab
+  - Settings icon for Settings tab
+  - Terminal icon for Terminal tab (new)
+- ✅ Fixed terminal scrolling and display within drawer
+- ✅ Removed terminal toggle button from header (cleaner UI)
+- ✅ Code cleanup: deleted TerminalSidebar.tsx component
+- **Files modified:**
+  - `apps/tauri-shell/src/components/Navigation.tsx` (+81 lines, added terminal tab with icon grid)
+  - `apps/tauri-shell/src/App.tsx` (-29 lines, removed terminal state and toggle)
+  - Deleted: `apps/tauri-shell/src/components/TerminalSidebar.tsx`
+
+**Status:** ✅ COMPLETE - Terminal now fully integrated into navigation with icon-based tabs
+
+**Previous Task:**
 **Agent @mention Functionality - COMPLETE**
 
 **Implemented:**
 - ✅ @mention autocomplete menu in input field
   - Filters agents as you type (e.g., @res → researcher)
-  - Navigate with Arrow keys ↑↓, select with Tab/Enter
-  - Dismiss with Escape, same styling as slash commands
+  - Navigate with Arrow keys, select with Tab/Enter
   - Shows agent icons and descriptions
 - ✅ Agents section in Settings tab
   - Lists all 4 built-in agents with icons
-  - 🔍 @researcher - Deep research using web search
-  - 💻 @coder - Code writing and debugging
-  - 📁 @file-ops - Batch file operations
-  - 📊 @analyst - Data analysis and insights
-  - Instructions on how to use @mention syntax
+  - Instructions on using @mention syntax
 - ✅ Backend integration verified
-  - All 4 agents loaded successfully
-  - SDK routing working with @mention syntax
 - **Files modified:**
-  - `apps/tauri-shell/src/App.tsx` (added agent menu and filtering)
-  - `apps/tauri-shell/src/components/Navigation.tsx` (added agents section)
+  - `apps/tauri-shell/src/App.tsx` (agent menu and filtering)
+  - `apps/tauri-shell/src/components/Navigation.tsx` (agents section)
 
-**Status:** ✅ COMPLETE - Users can now @mention agents with autocomplete
+**Status:** ✅ COMPLETE - Users can @mention agents with autocomplete
 
-**Previous Task:**
-**Interrupt Query Feature - COMPLETE**
-
-**Implemented:**
-- ✅ Backend interrupt infrastructure
-  - Added `interrupt()` method to SDK adapter (sdk-adapter.ts:69)
-  - Added 'interrupt' IPC request kind support (index.ts)
-  - Created `send_interrupt()` Tauri command (main.rs)
-- ✅ Frontend UI controls
-  - Imported StopCircle icon from lucide-react
-  - Added stop button in input area (visible when isLoading)
-  - Positioned button absolutely on right side of textarea
-  - Added Escape key handler for global interrupt
-- ✅ User experience features
-  - Button shows tooltip "Stop (Esc)"
-  - Red destructive styling for clear action
-  - Two ways to interrupt: click button or press Escape
-  - Gracefully stops Claude mid-execution via SDK's interrupt()
-
-**Status:** ✅ COMPLETE - Users can now interrupt long-running queries
-
-**Previous Task:**
-**Pin Button for Always-On-Top Window - COMPLETE**
-- ✅ Added Pin icon import from lucide-react
-- ✅ Added isPinned state tracking
-- ✅ Implemented pin button in header (App.tsx:385-402)
-- ✅ Button uses `appWindow.setAlwaysOnTop()` API
-- ✅ Visual feedback: fills icon and changes color when pinned
-
-**Earlier Sessions:**
-- Session 23: macOS transparency implementation
-- Session 22: Conversation loading bug fix (partial)
-- Session 21: Integrated shadcn/ui components with Tailwind CSS
-- Session 20: Draggable header with data-tauri-drag-region
-- Session 19: Compact window mode (90px → 600px) with 5-minute timeout
+**Earlier Completed Tasks:**
+- Interrupt Query Feature with stop button and Escape key
+- Pin Button for Always-On-Top Window
+- macOS transparency implementation
+- Conversation loading bug fix (partial)
+- shadcn/ui components integration
+- Draggable header with data-tauri-drag-region
+- Compact window mode with 5-minute timeout
 
 ### ⏭️ Next Task
 **Fix Conversation Loading Bug (Priority: HIGH)**
@@ -173,6 +180,56 @@
 ---
 
 ## 📝 Recent Changes
+
+### Session 29 (Nov 26, 2025)
+- **Fixed Chat Panel Bounce Behavior on macOS** (COMPLETE)
+- Resolved critical UX issue where chat content would bounce with mouse interaction
+- Problem diagnosis:
+  - macOS WebKit momentum scrolling was causing window-level bounce
+  - Content would disappear into transparent overflow areas
+  - Previous fix using `overscroll-behavior: contain` failed (wrong target)
+  - Issue was window-level WebKit bounce, not DOM element scroll
+- CSS solution implemented:
+  - Applied `position: fixed` to html, body, and #root elements
+  - Changed from `overscroll-behavior: contain` to `overscroll-behavior: none`
+  - Added explicit positioning constraints (top: 0, left: 0, right: 0, bottom: 0)
+  - Set `overflow: hidden` with `!important` at window level
+  - Added `-webkit-overflow-scrolling: auto` to disable momentum
+- ScrollArea preservation:
+  - Kept `overflow-y: auto` on `[data-radix-scroll-area-viewport]` elements
+  - Changed ScrollArea's overscroll from `none` to `contain` (element-level is safe)
+  - ScrollArea scrolling still works normally within locked viewport
+- **Result:**
+  - Window bounce completely eliminated
+  - Chat panel stays physically locked in place
+  - Content no longer disappears into transparent areas
+  - ScrollArea scrolling preserved for message history
+- **Files modified:**
+  - `apps/tauri-shell/src/styles.css` (lines 58-105: aggressive window scroll lockdown)
+- **Status:** Critical UX fix complete - window now behaves correctly on macOS
+
+### Session 28 (Nov 26, 2025)
+- **Integrated Terminal into Navigation Drawer** (COMPLETE)
+- Moved terminal from separate sidebar into navigation as 4th tab
+- Converted all navigation tabs to icon-only design:
+  - MessageSquare (History), Wrench (Tools), Settings, Terminal
+  - Changed grid from 3 columns to 4 columns for icon layout
+  - All icons sized at 18px for consistency
+- Terminal integration improvements:
+  - Terminal now properly scrolls and displays within drawer
+  - Fixed issue where terminal appeared as separate window
+  - Removed terminal toggle button from header for cleaner UI
+- Code cleanup:
+  - Deleted TerminalSidebar.tsx component (no longer needed)
+  - Removed showTerminal state management from App.tsx
+  - Removed Terminal icon import from App.tsx header
+  - Passed logs/onClearLogs props directly to Navigation component
+- **Files modified:**
+  - `apps/tauri-shell/src/components/Navigation.tsx` (+81 lines, terminal tab and icon grid)
+  - `apps/tauri-shell/src/App.tsx` (-29 lines, removed terminal state)
+  - Deleted: `apps/tauri-shell/src/components/TerminalSidebar.tsx`
+- **Git commit:** 5b29aab "Integrate terminal into navigation drawer with icon-based tabs"
+- **Status:** Feature complete - terminal fully integrated with icon-based navigation
 
 ### Session 27 (Nov 26, 2025)
 - **Implemented Agent @mention Functionality** (COMPLETE)

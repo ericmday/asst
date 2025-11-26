@@ -60,13 +60,47 @@
     @apply border-border;
   }
 
-  html, body, #root {
+  /* CRITICAL: Window-level scroll prevention for macOS WebKit */
+  html {
+    overflow: hidden !important;
+    height: 100vh !important;
+    position: fixed !important;
+    top: 0; left: 0; right: 0; bottom: 0;
+    overscroll-behavior: none !important;
+    -webkit-overflow-scrolling: auto !important;
+  }
+
+  body {
+    overflow: hidden !important;
+    height: 100vh !important;
+    position: fixed !important;
+    top: 0; left: 0; right: 0; bottom: 0;
+    overscroll-behavior: none !important;
+    margin: 0;
+    padding: 0;
+  }
+
+  #root {
     background-color: transparent !important;
     background: transparent !important;
+    overflow: hidden !important;
+    height: 100vh !important;
+    width: 100vw !important;
+    position: fixed !important;
+    top: 0; left: 0;
+    overscroll-behavior: none !important;
   }
 
   body {
     @apply text-foreground;
+  }
+
+  /* Allow ScrollArea elements to scroll */
+  [data-radix-scroll-area-viewport] {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    overscroll-behavior: contain !important;
+    position: relative !important;
   }
 }
 
