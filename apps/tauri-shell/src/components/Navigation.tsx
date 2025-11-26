@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { Moon, Sun, Settings, Wrench, MessageSquare } from 'lucide-react'
+import { Moon, Sun, Settings, Wrench, MessageSquare, Terminal, Trash2 } from 'lucide-react'
 import { Conversations } from './Conversations'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import type { Message } from '../types'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { cn } from '@/lib/utils'
+import type { Message, AgentLog } from '../types'
 
 interface NavigationProps {
   isOpen: boolean
@@ -18,9 +20,11 @@ interface NavigationProps {
   onLoadMessages: (messages: Message[], preventAutoCompact?: () => void) => void
   conversationVersionRef?: React.MutableRefObject<number>
   preventAutoCompact?: () => void
+  logs: AgentLog[]
+  onClearLogs: () => void
 }
 
-type Tab = 'history' | 'tools' | 'settings'
+type Tab = 'history' | 'tools' | 'settings' | 'terminal'
 
 export function Navigation({
   isOpen,
@@ -32,7 +36,9 @@ export function Navigation({
   onNewConversation,
   onLoadMessages,
   conversationVersionRef,
-  preventAutoCompact
+  preventAutoCompact,
+  logs,
+  onClearLogs
 }: NavigationProps) {
   const [activeTab, setActiveTab] = useState<Tab>('history')
 
@@ -43,18 +49,18 @@ export function Navigation({
           {/* Tabs Header */}
           <div className="border-b p-3">
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as Tab)}>
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="history" className="flex items-center gap-1.5">
-                  <MessageSquare size={16} />
-                  <span className="text-sm">History</span>
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="history" className="flex items-center justify-center">
+                  <MessageSquare size={18} />
                 </TabsTrigger>
-                <TabsTrigger value="tools" className="flex items-center gap-1.5">
-                  <Wrench size={16} />
-                  <span className="text-sm">Tools</span>
+                <TabsTrigger value="tools" className="flex items-center justify-center">
+                  <Wrench size={18} />
                 </TabsTrigger>
-                <TabsTrigger value="settings" className="flex items-center gap-1.5">
-                  <Settings size={16} />
-                  <span className="text-sm">Settings</span>
+                <TabsTrigger value="settings" className="flex items-center justify-center">
+                  <Settings size={18} />
+                </TabsTrigger>
+                <TabsTrigger value="terminal" className="flex items-center justify-center">
+                  <Terminal size={18} />
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -204,6 +210,53 @@ export function Navigation({
                     </div>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Terminal Tab */}
+            {activeTab === 'terminal' && (
+              <div className="h-full flex flex-col">
+                {/* Header */}
+                <div className="border-b px-4 py-3 flex justify-between items-center">
+                  <span className="font-semibold text-sm">Terminal Logs</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={onClearLogs}
+                    title="Clear logs"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {/* Log content */}
+                <ScrollArea className="flex-1">
+                  <div className="p-3 font-mono text-xs space-y-0.5">
+                    {logs.length === 0 ? (
+                      <div className="text-muted-foreground text-center py-8">
+                        No logs yet
+                      </div>
+                    ) : (
+                      logs.map((log, i) => (
+                        <div
+                          key={i}
+                          className={cn(
+                            "whitespace-pre-wrap break-all",
+                            log.source === 'stderr'
+                              ? 'text-yellow-600 dark:text-yellow-400'
+                              : 'text-gray-600 dark:text-gray-400'
+                          )}
+                        >
+                          <span className="text-muted-foreground">
+                            [{new Date(log.timestamp).toLocaleTimeString()}]
+                          </span>{' '}
+                          {log.message}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
               </div>
             )}
           </div>

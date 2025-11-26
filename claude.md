@@ -80,3 +80,4 @@ desktop-assistant/
 2. Log changes in diff/changelog section
 3. Set "Next Task"
 - always restart the app after a change
+- Always delegate work to agents as much as possible

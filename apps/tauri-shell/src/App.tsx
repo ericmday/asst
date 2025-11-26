@@ -1,12 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { X, Trash2, Menu, Pin, StopCircle, Terminal } from 'lucide-react'
+import { X, Trash2, Menu, Pin, StopCircle } from 'lucide-react'
 import { appWindow, LogicalSize } from '@tauri-apps/api/window'
 import { useAgent } from './useAgent'
 import { useAgentLogs } from './useAgentLogs'
 import { ToolResult } from './components/ToolResult'
 import { Markdown } from './components/Markdown'
 import { Navigation } from './components/Navigation'
-import { TerminalSidebar } from './components/TerminalSidebar'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Card } from '@/components/ui/card'
@@ -51,7 +50,6 @@ function App() {
   const [isExpanded, setIsExpanded] = useState(false)
   const [shouldAutoCompact, setShouldAutoCompact] = useState(true)
   const [isPinned, setIsPinned] = useState(false)
-  const [showTerminal, setShowTerminal] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const slashMenuRef = useRef<HTMLDivElement>(null)
@@ -378,6 +376,8 @@ function App() {
         onLoadMessages={loadMessages}
         conversationVersionRef={conversationVersionRef}
         preventAutoCompact={() => setShouldAutoCompact(false)}
+        logs={logs}
+        onClearLogs={clearLogs}
       />
 
       {isExpanded && (
@@ -394,22 +394,6 @@ function App() {
             <Menu size={20} />
           </Button>
           <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn(
-                "h-8 w-8",
-                showTerminal && "text-blue-600 dark:text-blue-400"
-              )}
-              onClick={() => {
-                setShowTerminal(!showTerminal)
-                resetInactivityTimer()
-              }}
-              aria-label={showTerminal ? "Hide terminal" : "Show terminal"}
-              title={showTerminal ? "Hide terminal" : "Show terminal"}
-            >
-              <Terminal size={16} />
-            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -641,13 +625,6 @@ function App() {
             </Button>
           )}
         </div>
-        {isExpanded && showTerminal && (
-        <TerminalSidebar
-          logs={logs}
-          onClear={clearLogs}
-          onClose={() => setShowTerminal(false)}
-        />
-      )}
     </div>
   </div>
   )
