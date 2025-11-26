@@ -15,8 +15,9 @@ import type { ImageAttachment } from './types'
 // Window sizes
 const COMPACT_HEIGHT = 60  // Compact - minimal height for input only
 const EXPANDED_HEIGHT = 600
-const WINDOW_WIDTH = 360
+const WINDOW_WIDTH = 365
 const INACTIVITY_TIMEOUT = 5 * 60 * 1000  // 5 minutes in milliseconds
+const ANIMATION_DURATION = 200  // Animation duration in milliseconds
 
 // Slash command definitions
 interface SlashCommand {
@@ -51,6 +52,7 @@ function App() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const slashMenuRef = useRef<HTMLDivElement>(null)
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const clearInProgressRef = useRef(false)
 
   const agentCallbacks = {
     onConversationCleared: () => {
@@ -88,8 +90,29 @@ function App() {
 
   // Define functions before useEffects that use them
   const expandWindow = async () => {
-    await appWindow.setSize(new LogicalSize(WINDOW_WIDTH, EXPANDED_HEIGHT))
-    setIsExpanded(true)
+    // Animate window expansion with smooth slide-up effect
+    const startHeight = COMPACT_HEIGHT
+    const endHeight = EXPANDED_HEIGHT
+    const startTime = Date.now()
+
+    const animate = async () => {
+      const elapsed = Date.now() - startTime
+      const progress = Math.min(elapsed / ANIMATION_DURATION, 1)
+
+      // Ease-out cubic function for smooth deceleration
+      const easeProgress = 1 - Math.pow(1 - progress, 3)
+
+      const currentHeight = startHeight + (endHeight - startHeight) * easeProgress
+      await appWindow.setSize(new LogicalSize(WINDOW_WIDTH, Math.round(currentHeight)))
+
+      if (progress < 1) {
+        requestAnimationFrame(animate)
+      } else {
+        setIsExpanded(true)
+      }
+    }
+
+    await animate()
   }
 
   const compactWindow = async () => {
@@ -123,6 +146,11 @@ function App() {
   // Auto-expand when messages are loaded (e.g., from conversation history)
   // Only auto-compact when shouldAutoCompact flag is true (initial state or timeout)
   useEffect(() => {
+    // Guard: never auto-compact if clear operation is in progress
+    if (clearInProgressRef.current) {
+      return
+    }
+
     if (messages.length > 0 && !isExpanded) {
       expandWindow().then(() => {
         // Only set after expansion completes to avoid race conditions
@@ -290,7 +318,11 @@ function App() {
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
         e.preventDefault()
         if (messages.length > 0) {
+          clearInProgressRef.current = true
           clearHistory()
+          setTimeout(() => {
+            clearInProgressRef.current = false
+          }, 100)
         }
       }
     }
@@ -306,14 +338,19 @@ function App() {
   }
 
   const handleNewConversation = () => {
+    clearInProgressRef.current = true
     setCurrentConversationId(undefined)
     setShouldAutoCompact(false)
     clearHistory()
     resetInactivityTimer()
+    // Reset guard after React's state updates settle
+    setTimeout(() => {
+      clearInProgressRef.current = false
+    }, 100)
   }
 
   return (
-    <div className={cn("flex flex-col h-screen text-foreground", isExpanded && "bg-background")}>
+    <div className={cn("flex flex-col h-screen text-foreground", isExpanded && "bg-background rounded-lg overflow-hidden")}>
       <Navigation
         isOpen={showNavigation}
         onClose={() => {
@@ -330,7 +367,7 @@ function App() {
         preventAutoCompact={() => setShouldAutoCompact(false)}
       />
 
-      {isExpanded && messages.length > 0 && (
+      {isExpanded && (
         <div className="flex items-center justify-between px-4 py-3 border-b bg-background" data-tauri-drag-region>
           <Button
             variant="ghost"
@@ -355,9 +392,14 @@ function App() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
+                  clearInProgressRef.current = true
                   setShouldAutoCompact(false)
                   clearHistory()
                   resetInactivityTimer()
+                  // Reset guard after React's state updates settle
+                  setTimeout(() => {
+                    clearInProgressRef.current = false
+                  }, 100)
                 }}
                 aria-label="Clear conversation history"
               >
@@ -371,7 +413,7 @@ function App() {
 
       <ScrollArea
         className="flex-1 px-4"
-        style={{ display: isExpanded && messages.length > 0 ? 'block' : 'none' }}
+        style={{ display: isExpanded ? 'block' : 'none' }}
         role="log"
         aria-live="polite"
         aria-label="Chat messages"

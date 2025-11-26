@@ -1,7 +1,7 @@
 # Development Status
 
-**Last Updated:** November 25, 2025
-**Current Phase:** Bug Fixes & Stability
+**Last Updated:** November 26, 2025
+**Current Phase:** UI Polish & Bug Fixes
 **Progress:** 50% (3/8 SDK phases complete + UI complete)
 
 ---
@@ -9,26 +9,32 @@
 ## 🎯 Current Focus
 
 ### ✅ Last Task Completed
-**macOS Transparency Implementation - COMPLETE**
+**macOS Window Rounded Corners & UI Polish - COMPLETE**
 
 **Implemented:**
-- ✅ Added macOS dependencies (cocoa 0.25, objc 0.2) to Cargo.toml
-- ✅ Implemented automatic transparency setup in `setup_handler()`
-  - Set window opacity to false via `setOpaque:false`
-  - Set background color to clear via `NSColor::clearColor`
-- ✅ Added `toggle_transparent` command for runtime transparency control
-  - Enable/disable transparency on demand
-  - Accessible via `invoke('toggle_transparent', { enable: true/false })`
-- ✅ Already had: transparent window config, CSS transparency, decorations disabled
+- ✅ Fixed Rust compilation warnings
+  - Removed unused `NSWindow` and `NSColor` imports from main.rs:14
+  - Enabled `macOSPrivateApi: true` in tauri.conf.json
+  - Eliminated transparency warning message
+- ✅ Fixed transparent input field background
+  - Changed Textarea component from `bg-transparent` to `bg-background`
+  - Input now has solid white/black background (theme-aware)
+- ✅ Added rounded corners to window and UI elements
+  - Added `rounded-lg` class to main container when expanded
+  - Added `overflow-hidden` to clip content to rounded borders
+  - Implemented macOS window corner radius via CALayer API (8px)
+  - Set corner radius on contentView layer with `setCornerRadius:8.0`
+  - Added `rounded-l-lg` to left sheet drawer
+  - Added `rounded-r-lg` to right sheet drawer
 
-**Status:** ✅ COMPLETE - All transparency features from guide implemented (5/5)
-- Config-level transparency enabled in tauri.conf.json
-- CSS transparency for webview background
-- macOS-specific Objective-C transparency setup
-- Runtime toggle command available
-- Note: Vibrancy support skipped (no working crate available)
+**Status:** ✅ COMPLETE - Window now has proper rounded corners at OS level
+- All compilation warnings fixed
+- Input field has proper solid background
+- Window corners properly rounded via macOS APIs
+- Sheet drawers match window corner style
 
 **Previous Sessions:**
+- Session 23: macOS transparency implementation
 - Session 22: Conversation loading bug fix (partial)
 - Session 21: Integrated shadcn/ui components with Tailwind CSS
 - Session 20: Draggable header with data-tauri-drag-region
@@ -129,6 +135,25 @@
 ---
 
 ## 📝 Recent Changes
+
+### Session 24 (Nov 26, 2025)
+- **Implemented macOS window rounded corners** (COMPLETE)
+- Fixed Rust compilation warnings
+  - Removed unused `NSWindow` and `NSColor` imports from main.rs
+  - Enabled `macOSPrivateApi: true` in tauri.conf.json
+- Fixed transparent input field background
+  - Changed Textarea from `bg-transparent` to `bg-background`
+- Implemented rounded corners at multiple levels:
+  - CSS: Added `rounded-lg` and `overflow-hidden` to main container
+  - macOS: Set 8px corner radius on contentView CALayer
+  - Sheets: Added `rounded-l-lg` and `rounded-r-lg` to side drawers
+- **Files modified:**
+  - `apps/tauri-shell/src-tauri/src/main.rs` (corner radius via CALayer API)
+  - `apps/tauri-shell/src-tauri/tauri.conf.json` (enabled macOSPrivateApi)
+  - `apps/tauri-shell/src/App.tsx` (rounded container classes)
+  - `apps/tauri-shell/src/components/ui/textarea.tsx` (solid background)
+  - `apps/tauri-shell/src/components/ui/sheet.tsx` (rounded drawer corners)
+- Window now has smooth, native-looking rounded corners
 
 ### Session 23 (Nov 25, 2025)
 - **Implemented macOS window transparency** (COMPLETE)

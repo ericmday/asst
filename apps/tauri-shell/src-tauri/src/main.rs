@@ -11,8 +11,6 @@ use tauri::{
 use tokio::sync::Mutex;
 
 #[cfg(target_os = "macos")]
-use cocoa::appkit::{NSWindow, NSColor};
-#[cfg(target_os = "macos")]
 use cocoa::base::id;
 #[cfg(target_os = "macos")]
 use objc::{msg_send, sel, sel_impl};
@@ -269,6 +267,13 @@ fn setup_handler(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>>
         // Enable transparency
         let _: () = msg_send![ns_window, setOpaque: false];
         let _: () = msg_send![ns_window, setBackgroundColor: clear_color];
+
+        // Set corner radius (8.0 for rounded-lg equivalent)
+        let content_view: id = msg_send![ns_window, contentView];
+        let _: () = msg_send![content_view, setWantsLayer: true];
+        let layer: id = msg_send![content_view, layer];
+        let _: () = msg_send![layer, setCornerRadius: 8.0f64];
+        let _: () = msg_send![layer, setMasksToBounds: true];
     }
 
     // Register global shortcut (Cmd+Shift+Space)

@@ -2,39 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
+/* =========================================================
+   1. Design tokens — unchanged (safe)
+   ========================================================= */
 @layer base {
   :root {
-    --background: 0 0% 100%;  /* Pure white */
-    --foreground: 0 0% 0%;  /* Pure black */
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
     --card: 0 0% 100%;
     --card-foreground: 0 0% 0%;
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 0%;
-    --primary: 0 0% 0%;  /* Black buttons in light mode */
-    --primary-foreground: 0 0% 100%;  /* White text on black buttons */
+    --primary: 0 0% 0%;
+    --primary-foreground: 0 0% 100%;
     --secondary: 0 0% 96.1%;
     --secondary-foreground: 0 0% 0%;
     --muted: 0 0% 96.1%;
     --muted-foreground: 0 0% 45.1%;
     --accent: 0 0% 96.1%;
     --accent-foreground: 0 0% 0%;
-    --destructive: 0 84.2% 60.2%;  /* Red for delete actions */
+    --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 100%;
     --border: 0 0% 89.8%;
     --input: 0 0% 89.8%;
-    --ring: 0 0% 0%;  /* Black focus ring */
+    --ring: 0 0% 0%;
     --radius: 2rem;
   }
 
   .dark, [data-theme="dark"] {
-    --background: 0 0% 0%;  /* Pure black */
-    --foreground: 0 0% 100%;  /* Pure white */
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
     --card: 0 0% 0%;
     --card-foreground: 0 0% 100%;
     --popover: 0 0% 0%;
     --popover-foreground: 0 0% 100%;
-    --primary: 0 0% 100%;  /* White buttons in dark mode */
-    --primary-foreground: 0 0% 0%;  /* Black text on white buttons */
+    --primary: 0 0% 100%;
+    --primary-foreground: 0 0% 0%;
     --secondary: 0 0% 17%;
     --secondary-foreground: 0 0% 100%;
     --muted: 0 0% 17%;
@@ -45,27 +48,48 @@
     --destructive-foreground: 0 0% 100%;
     --border: 0 0% 22%;
     --input: 0 0% 22%;
-    --ring: 0 0% 100%;  /* White focus ring */
+    --ring: 0 0% 100%;
   }
 }
 
+/* =========================================================
+   2. Base transparent overrides for Tauri macOS windows
+   ========================================================= */
 @layer base {
   * {
     @apply border-border;
   }
-  html {
+
+  html, body, #root {
+    background-color: transparent !important;
     background: transparent !important;
   }
+
   body {
     @apply text-foreground;
-    background: transparent !important;
-  }
-  #root {
-    background: transparent !important;
   }
 }
 
-/* Custom animations for chat UI */
+/* =========================================================
+   3. Optional: Frosted-glass UI container (like Raycast)
+   ========================================================= */
+@layer components {
+  .floating-shell {
+    background: rgba(20, 20, 20, 0.45);
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 12px 16px;
+    box-shadow:
+      0 4px 20px rgba(0, 0, 0, 0.25),
+      0 2px 8px rgba(0, 0, 0, 0.18);
+  }
+}
+
+/* =========================================================
+   4. Chat thinking animations
+   ========================================================= */
 @layer utilities {
   .animate-thinkingDot1 {
     animation: thinkingDot 1.4s 0s infinite;
@@ -77,7 +101,6 @@
     animation: thinkingDot 1.4s 0.4s infinite;
   }
 
-  /* Screen reader only content */
   .sr-only {
     position: absolute;
     width: 1px;

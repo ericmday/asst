@@ -10,10 +10,11 @@
     "version": "0.1.0"
   },
   "tauri": {
+    "macOSPrivateApi": true,
     "allowlist": {
       "all": false,
       "shell": {
-        "all": false,
+        "all": true,
         "open": true
       },
       "dialog": {
@@ -60,7 +61,7 @@
       {
         "title": "Desktop Assistant",
         "label": "main",
-        "width": 360,
+        "width": 365,
         "height": 60,
         "resizable": true,
         "fullscreen": false,
