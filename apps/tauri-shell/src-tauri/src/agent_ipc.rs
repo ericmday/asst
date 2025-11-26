@@ -69,26 +69,59 @@ impl AgentProcess {
             while let Ok(Some(line)) = lines.next_line().await {
                 eprintln!("[AGENT STDOUT] {}", line);
 
+                // Try to parse as agent response (JSON protocol)
                 match serde_json::from_str::<AgentResponse>(&line) {
                     Ok(response) => {
+                        // This is a JSON protocol message, emit as agent_response
                         if let Err(e) = app_handle_clone.emit_all("agent_response", &response) {
                             eprintln!("Failed to emit agent response: {}", e);
                         }
                     }
-                    Err(e) => {
-                        eprintln!("Failed to parse agent response: {} | Line: {}", e, line);
+                    Err(_) => {
+                        // Not JSON, treat as a regular log message (like [INFO] lines)
+                        let timestamp = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap()
+                            .as_millis() as i64;
+
+                        let log_event = serde_json::json!({
+                            "source": "stdout",
+                            "message": line,
+                            "timestamp": timestamp
+                        });
+
+                        if let Err(e) = app_handle_clone.emit_all("agent_log", &log_event) {
+                            eprintln!("Failed to emit agent log: {}", e);
+                        }
                     }
                 }
             }
         });
 
         // Spawn task to read stderr for debugging
+        let app_handle_stderr = app_handle.clone();
         tokio::spawn(async move {
             let reader = BufReader::new(stderr);
             let mut lines = reader.lines();
 
             while let Ok(Some(line)) = lines.next_line().await {
                 eprintln!("[AGENT STDERR] {}", line);
+
+                // Emit log event for stderr
+                let timestamp = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis() as i64;
+
+                let log_event = serde_json::json!({
+                    "source": "stderr",
+                    "message": line,
+                    "timestamp": timestamp
+                });
+
+                if let Err(e) = app_handle_stderr.emit_all("agent_log", &log_event) {
+                    eprintln!("Failed to emit agent log: {}", e);
+                }
             }
         });
 

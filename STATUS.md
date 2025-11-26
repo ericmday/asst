@@ -9,14 +9,40 @@
 ## 🎯 Current Focus
 
 ### 🔄 Current Task
-**Testing Recent Features**
+**Ready for Next Feature**
 
-**Status:** Ready for Testing
+**Status:** All Recent Features Complete
 - ✅ Pin button implemented and working
 - ✅ Interrupt feature implemented end-to-end
-- 🔍 Testing both features in live app
+- ✅ Agent @mention functionality with autocomplete
+- ✅ Agents section in Settings tab
 
 ### ✅ Last Task Completed
+**Agent @mention Functionality - COMPLETE**
+
+**Implemented:**
+- ✅ @mention autocomplete menu in input field
+  - Filters agents as you type (e.g., @res → researcher)
+  - Navigate with Arrow keys ↑↓, select with Tab/Enter
+  - Dismiss with Escape, same styling as slash commands
+  - Shows agent icons and descriptions
+- ✅ Agents section in Settings tab
+  - Lists all 4 built-in agents with icons
+  - 🔍 @researcher - Deep research using web search
+  - 💻 @coder - Code writing and debugging
+  - 📁 @file-ops - Batch file operations
+  - 📊 @analyst - Data analysis and insights
+  - Instructions on how to use @mention syntax
+- ✅ Backend integration verified
+  - All 4 agents loaded successfully
+  - SDK routing working with @mention syntax
+- **Files modified:**
+  - `apps/tauri-shell/src/App.tsx` (added agent menu and filtering)
+  - `apps/tauri-shell/src/components/Navigation.tsx` (added agents section)
+
+**Status:** ✅ COMPLETE - Users can now @mention agents with autocomplete
+
+**Previous Task:**
 **Interrupt Query Feature - COMPLETE**
 
 **Implemented:**
@@ -147,6 +173,28 @@
 ---
 
 ## 📝 Recent Changes
+
+### Session 27 (Nov 26, 2025)
+- **Implemented Agent @mention Functionality** (COMPLETE)
+- Added full @mention autocomplete support for invoking specialized agents
+- Frontend implementation:
+  - Added agent definitions with icons, names, and descriptions in App.tsx
+  - Created agent menu state management (showAgentMenu, selectedAgentIndex)
+  - Added regex-based filtering to detect @ mentions and filter agents
+  - Implemented keyboard navigation (Arrow keys, Tab, Enter, Escape)
+  - Created visual agent menu component matching slash command styling
+  - Menu shows agent icon, name, and description
+- Settings panel enhancement:
+  - Added new "Agents" section at top of Settings tab
+  - Listed all 4 built-in agents with icons and descriptions
+  - Added instructional text on using @mention syntax
+- Backend verification:
+  - Confirmed all 4 agents loading: researcher, coder, file-ops, analyst
+  - SDK routing with @mention syntax working correctly
+- **Files modified:**
+  - `apps/tauri-shell/src/App.tsx` (agent autocomplete menu and filtering logic)
+  - `apps/tauri-shell/src/components/Navigation.tsx` (agents section in Settings)
+- **Status:** Feature complete - users can @mention agents with autocomplete UI
 
 ### Session 26 (Nov 26, 2025)
 - **Implemented Query Interrupt Feature** (COMPLETE)

@@ -132,6 +132,48 @@ export function Navigation({
               <div className="h-full overflow-auto p-4">
                 <div className="space-y-4">
                   <div>
+                    <h3 className="font-semibold mb-3">Agents</h3>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Use @mention syntax to invoke specialized agents
+                    </p>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent transition-colors">
+                        <span className="text-lg">🔍</span>
+                        <div>
+                          <div className="font-medium text-sm">@researcher</div>
+                          <div className="text-sm text-muted-foreground">Deep research using web search</div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent transition-colors">
+                        <span className="text-lg">💻</span>
+                        <div>
+                          <div className="font-medium text-sm">@coder</div>
+                          <div className="text-sm text-muted-foreground">Code writing and debugging</div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent transition-colors">
+                        <span className="text-lg">📁</span>
+                        <div>
+                          <div className="font-medium text-sm">@file-ops</div>
+                          <div className="text-sm text-muted-foreground">Batch file operations</div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent transition-colors">
+                        <span className="text-lg">📊</span>
+                        <div>
+                          <div className="font-medium text-sm">@analyst</div>
+                          <div className="text-sm text-muted-foreground">Data analysis and insights</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div>
                     <h3 className="font-semibold mb-3">Appearance</h3>
                     <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
                       <div>

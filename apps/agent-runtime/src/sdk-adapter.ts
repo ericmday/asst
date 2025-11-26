@@ -1,8 +1,9 @@
-import { query, type SDKMessage, type SDKAssistantMessage, type SDKPartialAssistantMessage, type SDKResultMessage, type SDKUserMessage, type McpSdkServerConfigWithInstance, type Query } from '@anthropic-ai/claude-agent-sdk';
+import { query, type SDKMessage, type SDKAssistantMessage, type SDKPartialAssistantMessage, type SDKResultMessage, type SDKUserMessage, type McpSdkServerConfigWithInstance, type Query, type AgentDefinition } from '@anthropic-ai/claude-agent-sdk';
 import type { AppConfig } from './config.js';
 import { ConversationDatabase, type Conversation, type Message } from './persistence/database.js';
 import { randomUUID } from 'crypto';
 import Anthropic from '@anthropic-ai/sdk';
+import { loadAgentDefinitions, getAgentMetadata, type AgentConfig } from './agents/loader.js';
 
 /**
  * IPC Response types that match the protocol expected by Tauri shell
@@ -43,12 +44,29 @@ export class SDKAdapter {
   private currentAssistantMessage: string = '';  // Accumulate assistant response
   private anthropic: Anthropic;  // Direct API client for title generation
   private currentQuery?: Query;  // Reference to running query for interrupt support
+  private agents: Record<string, AgentDefinition> = {};  // SDK subagents
 
   constructor(config: AppConfig, mcpServer: McpSdkServerConfigWithInstance) {
     this.config = config;
     this.mcpServer = mcpServer;
     this.db = new ConversationDatabase();
     this.anthropic = new Anthropic({ apiKey: config.anthropicApiKey });
+
+    // Load agents asynchronously
+    this.initializeAgents();
+  }
+
+  /**
+   * Initialize agents from loader
+   */
+  private async initializeAgents(): Promise<void> {
+    try {
+      this.agents = await loadAgentDefinitions();
+      this.log('info', `Initialized ${Object.keys(this.agents).length} agents`);
+    } catch (error) {
+      this.log('error', 'Failed to initialize agents:', error);
+      this.agents = {};  // Fallback to no agents
+    }
   }
 
   /**
@@ -144,6 +162,33 @@ export class SDKAdapter {
         // If not handled, continue processing as normal message
       }
 
+      // Check for @mention syntax to invoke specific agents
+      // Format: @agentname rest of the prompt
+      const agentMention = message.trim().match(/^@(\w+)\s+(.+)/);
+      if (agentMention) {
+        const [, agentName, agentPrompt] = agentMention;
+
+        if (agentName in this.agents) {
+          this.log('info', `Agent mention detected: @${agentName}`);
+          // SDK will auto-route to the mentioned agent based on the prompt
+          // We could add agent name as prefix or metadata but SDK handles it
+        } else {
+          // Invalid agent name - inform user
+          this.emit({
+            type: 'token',
+            id: requestId,
+            token: `Unknown agent '@${agentName}'. Available agents: ${Object.keys(this.agents).join(', ')}`,
+            timestamp: Date.now()
+          });
+          this.emit({
+            type: 'done',
+            id: requestId,
+            timestamp: Date.now()
+          });
+          return;
+        }
+      }
+
       // Ensure we have a conversation
       if (!this.currentConversationId) {
         this.createConversation();
@@ -170,6 +215,7 @@ export class SDKAdapter {
             'desktop-assistant-tools': this.mcpServer  // Register MCP server with tools
           },
           maxTurns: 10, // Limit agentic loop iterations
+          agents: this.agents  // Register SDK subagents
         }
       });
 
@@ -461,6 +507,18 @@ export class SDKAdapter {
           await new Promise(resolve => setTimeout(resolve, 20));
         }
       }
+    }
+  }
+
+  /**
+   * Get list of available agents with metadata
+   */
+  async listAgents(): Promise<AgentConfig[]> {
+    try {
+      return await getAgentMetadata();
+    } catch (error) {
+      this.log('error', 'Failed to list agents:', error);
+      return [];
     }
   }
 

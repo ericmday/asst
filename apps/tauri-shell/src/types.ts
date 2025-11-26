@@ -81,3 +81,11 @@ export interface ToolCall {
   result?: any;
   timestamp: number;
 }
+
+// Agent Log Types
+
+export interface AgentLog {
+  source: 'stdout' | 'stderr';
+  message: string;
+  timestamp: number;
+}
