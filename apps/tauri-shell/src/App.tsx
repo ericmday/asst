@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { X, Trash2, Menu } from 'lucide-react'
+import { X, Trash2, Menu, Pin, StopCircle } from 'lucide-react'
 import { appWindow, LogicalSize } from '@tauri-apps/api/window'
 import { useAgent } from './useAgent'
 import { ToolResult } from './components/ToolResult'
@@ -48,6 +48,7 @@ function App() {
   })
   const [isExpanded, setIsExpanded] = useState(false)
   const [shouldAutoCompact, setShouldAutoCompact] = useState(true)
+  const [isPinned, setIsPinned] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const slashMenuRef = useRef<HTMLDivElement>(null)
@@ -65,7 +66,7 @@ function App() {
     }
   };
 
-  const { messages, toolCalls, isAgentReady, isLoading, sendMessage, clearHistory, loadMessages, conversationVersionRef } = useAgent(agentCallbacks)
+  const { messages, toolCalls, isAgentReady, isLoading, sendMessage, clearHistory, loadMessages, interruptQuery, conversationVersionRef } = useAgent(agentCallbacks)
 
   // Filter slash commands based on input
   const filteredCommands = inputValue.startsWith('/')
@@ -314,6 +315,14 @@ function App() {
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Escape to interrupt query when loading
+      if (e.key === 'Escape' && isLoading) {
+        e.preventDefault()
+        interruptQuery()
+        resetInactivityTimer()
+        return
+      }
+
       // Cmd+N (Mac) or Ctrl+N (Windows/Linux) to clear chat
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
         e.preventDefault()
@@ -329,7 +338,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [messages.length, clearHistory])
+  }, [messages.length, clearHistory, isLoading, interruptQuery, resetInactivityTimer])
 
   const handleConversationSelect = (id: string) => {
     setCurrentConversationId(id)
@@ -350,7 +359,7 @@ function App() {
   }
 
   return (
-    <div className={cn("flex flex-col h-screen text-foreground", isExpanded && "bg-background rounded-lg overflow-hidden")}>
+    <div className={cn("flex flex-col h-screen text-foreground", isExpanded && "bg-background rounded-sm overflow-hidden")}>
       <Navigation
         isOpen={showNavigation}
         onClose={() => {
@@ -380,7 +389,25 @@ function App() {
           >
             <Menu size={20} />
           </Button>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "h-8 w-8",
+                isPinned && "text-primary"
+              )}
+              onClick={async () => {
+                const newPinnedState = !isPinned
+                await appWindow.setAlwaysOnTop(newPinnedState)
+                setIsPinned(newPinnedState)
+                resetInactivityTimer()
+              }}
+              aria-label={isPinned ? "Unpin window" : "Pin window on top"}
+              title={isPinned ? "Unpin window" : "Pin window on top"}
+            >
+              <Pin size={16} className={cn(isPinned && "fill-current")} />
+            </Button>
             <span className={cn(
               "flex items-center gap-1.5 text-sm font-medium",
               isAgentReady ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
@@ -565,7 +592,7 @@ function App() {
             </div>
           </Card>
         )}
-        <div className={cn(isExpanded ? "p-3" : "p-2")}>
+        <div className={cn(isExpanded ? "p-3" : "p-2", "relative")}>
           <Textarea
             ref={textareaRef}
             value={inputValue}
@@ -574,10 +601,25 @@ function App() {
             onPaste={handlePaste}
             placeholder={isExpanded ? (isAgentReady ? "Type a message or paste an image..." : "Starting agent...") : "Assistant"}
             disabled={!isAgentReady || isLoading}
-            className="min-h-[42px] max-h-[120px] resize-none rounded-full px-4"
+            className={cn("min-h-[42px] max-h-[120px] resize-none rounded-full px-4", isLoading && "pr-12")}
             rows={1}
             aria-label="Message input"
           />
+          {isLoading && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-5 top-1/2 -translate-y-1/2 h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={() => {
+                interruptQuery()
+                resetInactivityTimer()
+              }}
+              aria-label="Stop generating"
+              title="Stop (Esc)"
+            >
+              <StopCircle size={20} />
+            </Button>
+          )}
         </div>
       </div>
     </div>

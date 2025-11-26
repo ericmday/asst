@@ -1,39 +1,51 @@
 # Development Status
 
 **Last Updated:** November 26, 2025
-**Current Phase:** UI Polish & Bug Fixes
+**Current Phase:** UI Polish & Feature Enhancements
 **Progress:** 50% (3/8 SDK phases complete + UI complete)
 
 ---
 
 ## 🎯 Current Focus
 
+### 🔄 Current Task
+**Testing Recent Features**
+
+**Status:** Ready for Testing
+- ✅ Pin button implemented and working
+- ✅ Interrupt feature implemented end-to-end
+- 🔍 Testing both features in live app
+
 ### ✅ Last Task Completed
-**macOS Window Rounded Corners & UI Polish - COMPLETE**
+**Interrupt Query Feature - COMPLETE**
 
 **Implemented:**
-- ✅ Fixed Rust compilation warnings
-  - Removed unused `NSWindow` and `NSColor` imports from main.rs:14
-  - Enabled `macOSPrivateApi: true` in tauri.conf.json
-  - Eliminated transparency warning message
-- ✅ Fixed transparent input field background
-  - Changed Textarea component from `bg-transparent` to `bg-background`
-  - Input now has solid white/black background (theme-aware)
-- ✅ Added rounded corners to window and UI elements
-  - Added `rounded-lg` class to main container when expanded
-  - Added `overflow-hidden` to clip content to rounded borders
-  - Implemented macOS window corner radius via CALayer API (8px)
-  - Set corner radius on contentView layer with `setCornerRadius:8.0`
-  - Added `rounded-l-lg` to left sheet drawer
-  - Added `rounded-r-lg` to right sheet drawer
+- ✅ Backend interrupt infrastructure
+  - Added `interrupt()` method to SDK adapter (sdk-adapter.ts:69)
+  - Added 'interrupt' IPC request kind support (index.ts)
+  - Created `send_interrupt()` Tauri command (main.rs)
+- ✅ Frontend UI controls
+  - Imported StopCircle icon from lucide-react
+  - Added stop button in input area (visible when isLoading)
+  - Positioned button absolutely on right side of textarea
+  - Added Escape key handler for global interrupt
+- ✅ User experience features
+  - Button shows tooltip "Stop (Esc)"
+  - Red destructive styling for clear action
+  - Two ways to interrupt: click button or press Escape
+  - Gracefully stops Claude mid-execution via SDK's interrupt()
 
-**Status:** ✅ COMPLETE - Window now has proper rounded corners at OS level
-- All compilation warnings fixed
-- Input field has proper solid background
-- Window corners properly rounded via macOS APIs
-- Sheet drawers match window corner style
+**Status:** ✅ COMPLETE - Users can now interrupt long-running queries
 
-**Previous Sessions:**
+**Previous Task:**
+**Pin Button for Always-On-Top Window - COMPLETE**
+- ✅ Added Pin icon import from lucide-react
+- ✅ Added isPinned state tracking
+- ✅ Implemented pin button in header (App.tsx:385-402)
+- ✅ Button uses `appWindow.setAlwaysOnTop()` API
+- ✅ Visual feedback: fills icon and changes color when pinned
+
+**Earlier Sessions:**
 - Session 23: macOS transparency implementation
 - Session 22: Conversation loading bug fix (partial)
 - Session 21: Integrated shadcn/ui components with Tailwind CSS
@@ -135,6 +147,42 @@
 ---
 
 ## 📝 Recent Changes
+
+### Session 26 (Nov 26, 2025)
+- **Implemented Query Interrupt Feature** (COMPLETE)
+- Added full end-to-end interrupt capability for stopping Claude mid-execution
+- Backend implementation:
+  - Added `interrupt()` method to SDK adapter (sdk-adapter.ts:69)
+  - Added 'interrupt' IPC request kind handler (index.ts)
+  - Created `send_interrupt()` Tauri command (main.rs)
+  - Calls SDK's `query.interrupt()` for graceful stop
+- Frontend implementation:
+  - Imported StopCircle icon from lucide-react
+  - Added stop button that appears when isLoading is true
+  - Positioned button absolutely on right side of textarea with red destructive styling
+  - Added global Escape key handler that interrupts when loading
+  - Button tooltip shows "Stop (Esc)" for discoverability
+- **Files modified:**
+  - `apps/agent-runtime/src/sdk-adapter.ts` (added interrupt method)
+  - `apps/agent-runtime/src/index.ts` (added interrupt IPC handler)
+  - `apps/tauri-shell/src-tauri/src/main.rs` (added send_interrupt command)
+  - `apps/tauri-shell/src/App.tsx` (added stop button and Escape handler)
+  - `apps/tauri-shell/src/useAgent.ts` (destructured interruptQuery)
+- **Status:** Feature complete - users can stop queries via button or Escape key
+
+### Session 25 (Nov 26, 2025)
+- **Adding pin button for always-on-top window** (IN PROGRESS)
+- Added pin button to header next to Ready status
+- Implemented using Tauri's `appWindow.setAlwaysOnTop()` API
+- Visual states:
+  - Unpinned: outline pin icon, muted color
+  - Pinned: filled pin icon, primary color
+- **Files modified:**
+  - `apps/tauri-shell/src/App.tsx` (added pin button and state)
+- **Status:** Testing functionality
+- Fixed conversation list overflow in navigation drawer
+  - Added `min-h-0` to content wrapper (Navigation.tsx:64)
+  - Added `flex flex-col` to history tab (Navigation.tsx:67)
 
 ### Session 24 (Nov 26, 2025)
 - **Implemented macOS window rounded corners** (COMPLETE)

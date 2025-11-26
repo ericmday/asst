@@ -93,6 +93,29 @@ async fn clear_history(state: State<'_, AppState>) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn send_interrupt(state: State<'_, AppState>) -> Result<(), String> {
+    let agent = state.agent.lock().await;
+
+    match agent.as_ref() {
+        Some(process) => {
+            let request = AgentRequest {
+                id: uuid::Uuid::new_v4().to_string(),
+                kind: "interrupt".to_string(),
+                message: None,
+                images: None,
+                conversation_id: None,
+            };
+
+            process
+                .send_request(&request)
+                .await
+                .map_err(|e| format!("Failed to send interrupt: {}", e))
+        }
+        None => Err("Agent not running".to_string()),
+    }
+}
+
+#[tauri::command]
 async fn list_conversations(state: State<'_, AppState>) -> Result<String, String> {
     let agent = state.agent.lock().await;
 
@@ -230,6 +253,7 @@ fn main() {
             spawn_agent,
             send_message,
             clear_history,
+            send_interrupt,
             list_conversations,
             load_conversation,
             new_conversation,
@@ -268,11 +292,10 @@ fn setup_handler(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>>
         let _: () = msg_send![ns_window, setOpaque: false];
         let _: () = msg_send![ns_window, setBackgroundColor: clear_color];
 
-        // Set corner radius (8.0 for rounded-lg equivalent)
         let content_view: id = msg_send![ns_window, contentView];
         let _: () = msg_send![content_view, setWantsLayer: true];
         let layer: id = msg_send![content_view, layer];
-        let _: () = msg_send![layer, setCornerRadius: 8.0f64];
+        let _: () = msg_send![layer, setCornerRadius: 2.0f64];
         let _: () = msg_send![layer, setMasksToBounds: true];
     }
 

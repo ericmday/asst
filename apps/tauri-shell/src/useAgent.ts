@@ -217,6 +217,16 @@ export function useAgent(callbacks?: {
     preventAutoCompact?.();
   }, []);
 
+  const interruptQuery = useCallback(async () => {
+    try {
+      await invoke('send_interrupt');
+      setIsLoading(false);
+      console.log('Query interrupted');
+    } catch (error) {
+      console.error('Failed to interrupt query:', error);
+    }
+  }, []);
+
   return {
     messages,
     toolCalls,
@@ -225,6 +235,7 @@ export function useAgent(callbacks?: {
     sendMessage,
     clearHistory,
     loadMessages,
+    interruptQuery,
     conversationVersionRef,
   };
 }

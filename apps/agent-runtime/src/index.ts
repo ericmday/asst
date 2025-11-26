@@ -8,7 +8,7 @@ import { createSDKTools } from './sdk-tools.js';
  */
 interface AgentRequest {
   id: string;
-  kind: 'user_message' | 'clear_history' | 'load_conversation' | 'new_conversation' | 'list_conversations' | 'delete_conversation';
+  kind: 'user_message' | 'clear_history' | 'load_conversation' | 'new_conversation' | 'list_conversations' | 'delete_conversation' | 'interrupt';
   message?: string;
   conversation_id?: string;
   images?: string; // JSON string of image attachments
@@ -141,6 +141,16 @@ async function main() {
                 timestamp: Date.now()
               }));
             }
+            break;
+
+          case 'interrupt':
+            // Interrupt the currently running query
+            await adapter.interrupt();
+            console.log(JSON.stringify({
+              type: 'done',
+              id: request.id,
+              timestamp: Date.now()
+            }));
             break;
 
           default:

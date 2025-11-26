@@ -1,4 +1,4 @@
-import { query, type SDKMessage, type SDKAssistantMessage, type SDKPartialAssistantMessage, type SDKResultMessage, type SDKUserMessage, type McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk';
+import { query, type SDKMessage, type SDKAssistantMessage, type SDKPartialAssistantMessage, type SDKResultMessage, type SDKUserMessage, type McpSdkServerConfigWithInstance, type Query } from '@anthropic-ai/claude-agent-sdk';
 import type { AppConfig } from './config.js';
 import { ConversationDatabase, type Conversation, type Message } from './persistence/database.js';
 import { randomUUID } from 'crypto';
@@ -42,6 +42,7 @@ export class SDKAdapter {
   private db: ConversationDatabase;
   private currentAssistantMessage: string = '';  // Accumulate assistant response
   private anthropic: Anthropic;  // Direct API client for title generation
+  private currentQuery?: Query;  // Reference to running query for interrupt support
 
   constructor(config: AppConfig, mcpServer: McpSdkServerConfigWithInstance) {
     this.config = config;
@@ -106,6 +107,21 @@ export class SDKAdapter {
   }
 
   /**
+   * Interrupt the currently running query
+   * This allows the user to stop Claude mid-execution
+   */
+  async interrupt(): Promise<void> {
+    if (this.currentQuery) {
+      this.log('info', 'Interrupting current query...');
+      await this.currentQuery.interrupt();
+      this.currentQuery = undefined;
+      this.log('info', 'Query interrupted successfully');
+    } else {
+      this.log('warn', 'No active query to interrupt');
+    }
+  }
+
+  /**
    * Process a user message through the SDK and emit IPC responses
    *
    * @param message - User's text message
@@ -157,6 +173,9 @@ export class SDKAdapter {
         }
       });
 
+      // Store reference to current query for interrupt support
+      this.currentQuery = q;
+
       // Stream SDK messages and convert to IPC format
       for await (const sdkMessage of q) {
         // Capture session ID from first message for conversation continuity
@@ -187,7 +206,12 @@ export class SDKAdapter {
         }
       }
 
+      // Clear query reference when streaming completes
+      this.currentQuery = undefined;
+
     } catch (error) {
+      // Clear query reference on error
+      this.currentQuery = undefined;
       this.sendError(error instanceof Error ? error.message : 'Unknown error');
     }
   }

@@ -61,10 +61,10 @@ export function Navigation({
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-hidden min-h-0">
             {/* History Tab */}
             {activeTab === 'history' && (
-              <div className="h-full">
+              <div className="h-full flex flex-col">
                 <Conversations
                   isOpen={true}
                   onClose={onClose}
