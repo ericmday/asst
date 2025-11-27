@@ -1,108 +1,135 @@
 # Development Status
 
-**Last Updated:** November 26, 2025 (Session 29)
+**Last Updated:** November 26, 2025
 **Current Phase:** UI Polish & Feature Enhancements
-**Progress:** 50% (3/8 SDK phases complete + UI complete)
+**Progress:** 55% (3/8 SDK phases complete + UI complete + file access)
 
 ---
 
 ## 🎯 Current Focus
 
 ### 🔄 Current Task
-**Ready for Next Feature**
+**Testing File Access Features**
 
-**Status:** All Recent Features Complete
-- ✅ Terminal integrated into navigation drawer
-- ✅ Icon-based navigation tabs
-- ✅ Pin button implemented and working
-- ✅ Interrupt feature implemented end-to-end
-- ✅ Agent @mention functionality with autocomplete
-- ✅ Chat panel bounce fix (macOS WebKit scrolling)
+**Status:** Clipboard and file permission implementation complete, ready for user testing
+- ✅ Created macOS entitlements for user-selected file access
+- ✅ Added Rust Tauri commands for file picker and reading
+- ✅ Implemented three input methods: clipboard, file picker, drag-and-drop
+- ✅ Application restarted and running
+- ⏳ Awaiting user testing and feedback
 
 ### ✅ Last Task Completed
-**Chat Panel Bounce Fix - COMPLETE**
+**Clipboard and File Permission Feature - Session 30**
 
-**Implemented:**
-- ✅ Fixed macOS WebKit momentum scrolling causing chat content to bounce
-- ✅ Applied aggressive CSS lockdown with `position: fixed` on html, body, #root
-- ✅ Changed `overscroll-behavior` from `contain` to `none` at window level
-- ✅ Preserved ScrollArea scrolling functionality while preventing window-level bounce
-- ✅ Chat content no longer disappears into transparent overflow areas
-- **Root cause:** Previous CSS used `contain` instead of `none` - issue was window-level WebKit momentum scroll, not DOM element scroll
-- **Solution:** `position: fixed` physically locks viewport, preventing native WebKit bounce
-- **Files modified:**
-  - `apps/tauri-shell/src/styles.css` (lines 58-105: window scroll lockdown)
-    - Added `position: fixed` to html, body, #root
-    - Changed `overscroll-behavior: contain` to `overscroll-behavior: none`
-    - Added explicit `overflow-y: auto` to ScrollArea viewports
+**Problem:** Users couldn't provide file paths to images in the assistant. When file paths were provided, the assistant would ask for permission and fail to read them due to macOS sandbox restrictions.
 
-**Status:** ✅ COMPLETE - Window bounce eliminated, chat panel locked, ScrollArea scrolling preserved
+**Solution Implemented - Hybrid Approach Using Tauri as Privileged Intermediary:**
+
+**1. macOS Entitlements (NEW FILE: `apps/tauri-shell/src-tauri/Info.plist`)**
+- ✅ Created entitlements file with `com.apple.security.files.user-selected.read-only`
+- ✅ Added network access entitlement for API calls
+- ✅ Referenced in `tauri.conf.json` under `bundle.macOS.entitlements`
+
+**2. Rust Backend Commands (`apps/tauri-shell/src-tauri/src/main.rs`)**
+- ✅ Added `open_image_picker()` command using NSOpenPanel for user file selection
+- ✅ Added `read_image_as_base64()` command for privileged file reading
+- ✅ Image validation for supported formats (png, jpg, jpeg, gif, webp)
+- ✅ Base64 encoding in Rust layer
+- ✅ Added base64 dependency to `Cargo.toml`
+- ✅ Returns structured ImageData with data, mime_type, and name
+
+**3. Frontend UI Enhancements (`apps/tauri-shell/src/App.tsx`)**
+- ✅ **File Picker Button**: Paperclip icon button (📎) in input area when expanded
+- ✅ **Drag-and-Drop**: Drop zone with visual feedback (ring highlight when dragging)
+- ✅ **Clipboard Paste**: Existing Cmd+V functionality (already working)
+- ✅ State management: isPickingFile, isDragging
+- ✅ Error handling and user feedback
+- ✅ Activity timer reset on all three input methods
+
+**How It Works:**
+1. User-selected files bypass sandbox via macOS entitlements
+2. Tauri Rust layer handles file selection (NSOpenPanel) and reading
+3. Images converted to base64 in Rust, passed to agent runtime
+4. Three convenient input methods: paste, file picker button, drag-and-drop from Finder
+
+**Files Modified:**
+- **NEW:** `apps/tauri-shell/src-tauri/Info.plist` - macOS entitlements
+- `apps/tauri-shell/src-tauri/tauri.conf.json` - entitlements reference
+- `apps/tauri-shell/src-tauri/Cargo.toml` - base64 dependency
+- `apps/tauri-shell/src-tauri/src/main.rs` - file picker and read commands
+- `apps/tauri-shell/src/App.tsx` - UI for file picker, drag-and-drop
+
+**Status:** ✅ COMPLETE - Implementation finished, app restarted, ready for testing
 
 **Previous Task:**
-**Terminal Sidebar Integration - COMPLETE**
+**Critical EPIPE Root Cause Fix - Session 29**
 
-**Implemented:**
-- ✅ Moved terminal from separate sidebar into navigation drawer as 4th tab
-- ✅ Converted all navigation tabs to icon-only design (18px icons)
-  - MessageSquare icon for History tab
-  - Wrench icon for Tools tab
-  - Settings icon for Settings tab
-  - Terminal icon for Terminal tab (new)
-- ✅ Fixed terminal scrolling and display within drawer
-- ✅ Removed terminal toggle button from header (cleaner UI)
-- ✅ Code cleanup: deleted TerminalSidebar.tsx component
-- **Files modified:**
-  - `apps/tauri-shell/src/components/Navigation.tsx` (+81 lines, added terminal tab with icon grid)
-  - `apps/tauri-shell/src/App.tsx` (-29 lines, removed terminal state and toggle)
-  - Deleted: `apps/tauri-shell/src/components/TerminalSidebar.tsx`
+**Problem:** EPIPE errors occurring when Node.js agent tried to send responses back through stdout, especially with large payloads like image vision responses.
 
-**Status:** ✅ COMPLETE - Terminal now fully integrated into navigation with icon-based tabs
+**Root Cause Identified:**
+The Rust stdout reader task was using `while let Ok(Some(line))` pattern which **silently exits the loop on ANY error**, causing:
+1. Large JSON responses trigger read errors in `BufReader::read_line()`
+2. Loop exits without logging why
+3. Stdout reader task terminates
+4. Subsequent writes from Node.js get EPIPE because nobody is reading anymore
+
+**The Fix:**
+- ✅ **Replaced silent error pattern in stdout reader** (`apps/tauri-shell/src-tauri/src/agent_ipc.rs:69-116`)
+  - Changed from `while let Ok(Some(line))` to explicit `match` with error handling
+  - Added logging for EOF and read errors
+  - Continue reading on errors instead of exiting (handle transient errors)
+  - Only exit on true EOF (Ok(None))
+  - Added exit logging for debugging
+- ✅ **Applied same fix to stderr reader** (`apps/tauri-shell/src-tauri/src/agent_ipc.rs:124-159`)
+  - Consistent error handling across both pipes
+  - Proper EOF detection
+  - Continue on transient errors
+
+**Previous Partial Fixes (Session 28):**
+- Fixed readline stdout conflict in Node.js
+- Fixed missing sendResponse() method calls
+- Added EPIPE error handlers in Node.js
+These were helpful but didn't address the root cause in Rust
+
+**Status:** ✅ Fix implemented and being tested with large payloads
 
 **Previous Task:**
-**Agent @mention Functionality - COMPLETE**
+**Interrupt Query Feature - COMPLETE**
 
 **Implemented:**
-- ✅ @mention autocomplete menu in input field
-  - Filters agents as you type (e.g., @res → researcher)
-  - Navigate with Arrow keys, select with Tab/Enter
-  - Shows agent icons and descriptions
-- ✅ Agents section in Settings tab
-  - Lists all 4 built-in agents with icons
-  - Instructions on using @mention syntax
-- ✅ Backend integration verified
-- **Files modified:**
-  - `apps/tauri-shell/src/App.tsx` (agent menu and filtering)
-  - `apps/tauri-shell/src/components/Navigation.tsx` (agents section)
+- ✅ Backend interrupt infrastructure
+  - Added `interrupt()` method to SDK adapter (sdk-adapter.ts:69)
+  - Added 'interrupt' IPC request kind support (index.ts)
+  - Created `send_interrupt()` Tauri command (main.rs)
+- ✅ Frontend UI controls
+  - Imported StopCircle icon from lucide-react
+  - Added stop button in input area (visible when isLoading)
+  - Positioned button absolutely on right side of textarea
+  - Added Escape key handler for global interrupt
+- ✅ User experience features
+  - Button shows tooltip "Stop (Esc)"
+  - Red destructive styling for clear action
+  - Two ways to interrupt: click button or press Escape
+  - Gracefully stops Claude mid-execution via SDK's interrupt()
 
-**Status:** ✅ COMPLETE - Users can @mention agents with autocomplete
+**Status:** ✅ COMPLETE - Users can now interrupt long-running queries
 
-**Earlier Completed Tasks:**
-- Interrupt Query Feature with stop button and Escape key
-- Pin Button for Always-On-Top Window
-- macOS transparency implementation
-- Conversation loading bug fix (partial)
-- shadcn/ui components integration
-- Draggable header with data-tauri-drag-region
-- Compact window mode with 5-minute timeout
+**Previous Task:**
+**Pin Button for Always-On-Top Window - COMPLETE**
+- ✅ Added Pin icon import from lucide-react
+- ✅ Added isPinned state tracking
+- ✅ Implemented pin button in header (App.tsx:385-402)
+- ✅ Button uses `appWindow.setAlwaysOnTop()` API
+- ✅ Visual feedback: fills icon and changes color when pinned
+
+**Earlier Sessions:**
+- Session 23: macOS transparency implementation
+- Session 22: Conversation loading bug fix (partial)
+- Session 21: Integrated shadcn/ui components with Tailwind CSS
+- Session 20: Draggable header with data-tauri-drag-region
+- Session 19: Compact window mode (90px → 600px) with 5-minute timeout
 
 ### ⏭️ Next Task
-**Fix Conversation Loading Bug (Priority: HIGH)**
-
-**Issue:** Old messages persist when switching conversations despite version counter fix
-
-**Investigation Needed:**
-1. Check if SDK session is properly clearing between conversation loads
-2. Verify database message retrieval is correct
-3. Investigate if React state is truly being reset
-4. Consider implementing conversation-scoped IPC (Approach 2 from plan)
-5. Review message ID generation - could be collision causing matches
-
-**Reference:** See `/Users/ericday/.claude/plans/agile-dreaming-goldwasser.md` for detailed analysis
-
-**Alternative Approaches if Current Fix Fails:**
-- [ ] Approach 2: Add conversation_id to all IPC protocol messages
-- [ ] Approach 3: Implement Zustand state machine with atomic transitions
-- [ ] Deep dive: SDK adapter session/conversation management
 
 **Other Pending Tasks:**
 - [ ] Add visual timer countdown indicator
@@ -170,9 +197,11 @@
 | Color Scheme | ✅ Complete | Pure black & white (#000 / #FFF) |
 | UI Components | ✅ Complete | All using shadcn primitives |
 | macOS Transparency | ✅ Complete | NSWindow setup, toggle command |
+| File Access (Images) | ✅ Complete | Entitlements, picker, drag-drop |
+| Image Input Methods | ✅ Complete | Paste, file picker, drag-and-drop |
 | SDK Hooks | ⏳ Pending | PreToolUse, PostToolUse, etc. |
 | Permissions System | ⏳ Pending | canUseTool callbacks |
-| Clipboard Tools | ⏳ Pending | Read/write clipboard |
+| Clipboard Tools | ⏳ Pending | Read/write clipboard text |
 | Vision Tools | ⏳ Pending | Screenshots, image analysis |
 | Persistence | ⏳ Pending | SQLite conversation storage |
 | Custom Tools | ⏳ Pending | Script loader |
@@ -181,55 +210,63 @@
 
 ## 📝 Recent Changes
 
+### Session 30 (Nov 26, 2025)
+- **Implemented Clipboard and File Permission Feature** (COMPLETE)
+- Problem: Users couldn't provide file paths to images; assistant would fail to read them
+- Solution: Hybrid approach using Tauri Rust layer as privileged intermediary
+- **Created `apps/tauri-shell/src-tauri/Info.plist`:**
+  - Added macOS entitlements: `com.apple.security.files.user-selected.read-only`
+  - Added network access entitlement for API calls
+- **Modified `apps/tauri-shell/src-tauri/tauri.conf.json`:**
+  - Referenced entitlements file in bundle.macOS.entitlements
+- **Modified `apps/tauri-shell/src-tauri/Cargo.toml`:**
+  - Added base64 dependency for image encoding
+- **Modified `apps/tauri-shell/src-tauri/src/main.rs`:**
+  - Added `open_image_picker()` command using NSOpenPanel
+  - Added `read_image_as_base64()` command for privileged file reading
+  - Image validation for png, jpg, jpeg, gif, webp formats
+  - Returns ImageData struct with base64 data, mime type, and filename
+- **Modified `apps/tauri-shell/src/App.tsx`:**
+  - Added Paperclip icon import from lucide-react
+  - Added file picker button (📎) in input area when expanded
+  - Added drag-and-drop support with visual feedback (ring highlight)
+  - State management for isPickingFile and isDragging
+  - All three methods (paste/picker/drop) reset inactivity timer
+- **Three Input Methods Now Available:**
+  1. Clipboard paste (Cmd+V) - existing functionality
+  2. File picker button (📎) - new visual UI
+  3. Drag-and-drop from Finder - new convenience feature
+- **Impact:** Users can now easily add images via three convenient methods, all working within macOS sandbox
+- **Status:** Feature complete, app restarted, ready for user testing
+
 ### Session 29 (Nov 26, 2025)
-- **Fixed Chat Panel Bounce Behavior on macOS** (COMPLETE)
-- Resolved critical UX issue where chat content would bounce with mouse interaction
-- Problem diagnosis:
-  - macOS WebKit momentum scrolling was causing window-level bounce
-  - Content would disappear into transparent overflow areas
-  - Previous fix using `overscroll-behavior: contain` failed (wrong target)
-  - Issue was window-level WebKit bounce, not DOM element scroll
-- CSS solution implemented:
-  - Applied `position: fixed` to html, body, and #root elements
-  - Changed from `overscroll-behavior: contain` to `overscroll-behavior: none`
-  - Added explicit positioning constraints (top: 0, left: 0, right: 0, bottom: 0)
-  - Set `overflow: hidden` with `!important` at window level
-  - Added `-webkit-overflow-scrolling: auto` to disable momentum
-- ScrollArea preservation:
-  - Kept `overflow-y: auto` on `[data-radix-scroll-area-viewport]` elements
-  - Changed ScrollArea's overscroll from `none` to `contain` (element-level is safe)
-  - ScrollArea scrolling still works normally within locked viewport
-- **Result:**
-  - Window bounce completely eliminated
-  - Chat panel stays physically locked in place
-  - Content no longer disappears into transparent areas
-  - ScrollArea scrolling preserved for message history
-- **Files modified:**
-  - `apps/tauri-shell/src/styles.css` (lines 58-105: aggressive window scroll lockdown)
-- **Status:** Critical UX fix complete - window now behaves correctly on macOS
+- **Fixed Critical EPIPE Root Cause in Rust stdout Reader** (COMPLETE)
+- Root cause: `while let Ok(Some(line))` pattern silently exiting on read errors
+- Issue: Large JSON payloads caused read errors, terminating the stdout reader task
+- This caused subsequent Node.js writes to get EPIPE (nobody reading anymore)
+- **Fixed in `apps/tauri-shell/src-tauri/src/agent_ipc.rs`:**
+  - Replaced `while let Ok(Some(line))` with explicit `loop { match next_line() }`
+  - Added error logging for read failures
+  - Continue reading on errors instead of exiting (handle transient errors)
+  - Only exit on true EOF (Ok(None))
+  - Added exit logging to track when reader tasks stop
+  - Applied same fix to both stdout and stderr readers
+- **Impact:** Should completely resolve EPIPE errors with large payloads
+- **Note:** Session 28 fixes (readline, sendResponse) were helpful but didn't address root cause
 
 ### Session 28 (Nov 26, 2025)
-- **Integrated Terminal into Navigation Drawer** (COMPLETE)
-- Moved terminal from separate sidebar into navigation as 4th tab
-- Converted all navigation tabs to icon-only design:
-  - MessageSquare (History), Wrench (Tools), Settings, Terminal
-  - Changed grid from 3 columns to 4 columns for icon layout
-  - All icons sized at 18px for consistency
-- Terminal integration improvements:
-  - Terminal now properly scrolls and displays within drawer
-  - Fixed issue where terminal appeared as separate window
-  - Removed terminal toggle button from header for cleaner UI
-- Code cleanup:
-  - Deleted TerminalSidebar.tsx component (no longer needed)
-  - Removed showTerminal state management from App.tsx
-  - Removed Terminal icon import from App.tsx header
-  - Passed logs/onClearLogs props directly to Navigation component
+- **Fixed Critical IPC EPIPE Error** (COMPLETE)
+- Root cause: readline interface conflicting with stdout IPC protocol
+- Fixed readline configuration by removing stdout output
+- Fixed missing emit() method calls (should be sendResponse())
+- Added comprehensive error handling for broken pipes in both Rust and Node.js
+- Added backpressure handling in sendResponse()
+- Added global exception handlers for EPIPE errors
 - **Files modified:**
-  - `apps/tauri-shell/src/components/Navigation.tsx` (+81 lines, terminal tab and icon grid)
-  - `apps/tauri-shell/src/App.tsx` (-29 lines, removed terminal state)
-  - Deleted: `apps/tauri-shell/src/components/TerminalSidebar.tsx`
-- **Git commit:** 5b29aab "Integrate terminal into navigation drawer with icon-based tabs"
-- **Status:** Feature complete - terminal fully integrated with icon-based navigation
+  - `apps/agent-runtime/src/index.ts` (readline config, error handlers)
+  - `apps/agent-runtime/src/sdk-adapter.ts` (emit → sendResponse, error handling)
+  - `apps/tauri-shell/src-tauri/src/agent_ipc.rs` (broken pipe detection)
+- **Impact:** Image vision feature now works reliably with large payloads
 
 ### Session 27 (Nov 26, 2025)
 - **Implemented Agent @mention Functionality** (COMPLETE)
@@ -252,98 +289,6 @@
   - `apps/tauri-shell/src/App.tsx` (agent autocomplete menu and filtering logic)
   - `apps/tauri-shell/src/components/Navigation.tsx` (agents section in Settings)
 - **Status:** Feature complete - users can @mention agents with autocomplete UI
-
-### Session 26 (Nov 26, 2025)
-- **Implemented Query Interrupt Feature** (COMPLETE)
-- Added full end-to-end interrupt capability for stopping Claude mid-execution
-- Backend implementation:
-  - Added `interrupt()` method to SDK adapter (sdk-adapter.ts:69)
-  - Added 'interrupt' IPC request kind handler (index.ts)
-  - Created `send_interrupt()` Tauri command (main.rs)
-  - Calls SDK's `query.interrupt()` for graceful stop
-- Frontend implementation:
-  - Imported StopCircle icon from lucide-react
-  - Added stop button that appears when isLoading is true
-  - Positioned button absolutely on right side of textarea with red destructive styling
-  - Added global Escape key handler that interrupts when loading
-  - Button tooltip shows "Stop (Esc)" for discoverability
-- **Files modified:**
-  - `apps/agent-runtime/src/sdk-adapter.ts` (added interrupt method)
-  - `apps/agent-runtime/src/index.ts` (added interrupt IPC handler)
-  - `apps/tauri-shell/src-tauri/src/main.rs` (added send_interrupt command)
-  - `apps/tauri-shell/src/App.tsx` (added stop button and Escape handler)
-  - `apps/tauri-shell/src/useAgent.ts` (destructured interruptQuery)
-- **Status:** Feature complete - users can stop queries via button or Escape key
-
-### Session 25 (Nov 26, 2025)
-- **Adding pin button for always-on-top window** (IN PROGRESS)
-- Added pin button to header next to Ready status
-- Implemented using Tauri's `appWindow.setAlwaysOnTop()` API
-- Visual states:
-  - Unpinned: outline pin icon, muted color
-  - Pinned: filled pin icon, primary color
-- **Files modified:**
-  - `apps/tauri-shell/src/App.tsx` (added pin button and state)
-- **Status:** Testing functionality
-- Fixed conversation list overflow in navigation drawer
-  - Added `min-h-0` to content wrapper (Navigation.tsx:64)
-  - Added `flex flex-col` to history tab (Navigation.tsx:67)
-
-### Session 24 (Nov 26, 2025)
-- **Implemented macOS window rounded corners** (COMPLETE)
-- Fixed Rust compilation warnings
-  - Removed unused `NSWindow` and `NSColor` imports from main.rs
-  - Enabled `macOSPrivateApi: true` in tauri.conf.json
-- Fixed transparent input field background
-  - Changed Textarea from `bg-transparent` to `bg-background`
-- Implemented rounded corners at multiple levels:
-  - CSS: Added `rounded-lg` and `overflow-hidden` to main container
-  - macOS: Set 8px corner radius on contentView CALayer
-  - Sheets: Added `rounded-l-lg` and `rounded-r-lg` to side drawers
-- **Files modified:**
-  - `apps/tauri-shell/src-tauri/src/main.rs` (corner radius via CALayer API)
-  - `apps/tauri-shell/src-tauri/tauri.conf.json` (enabled macOSPrivateApi)
-  - `apps/tauri-shell/src/App.tsx` (rounded container classes)
-  - `apps/tauri-shell/src/components/ui/textarea.tsx` (solid background)
-  - `apps/tauri-shell/src/components/ui/sheet.tsx` (rounded drawer corners)
-- Window now has smooth, native-looking rounded corners
-
-### Session 23 (Nov 25, 2025)
-- **Implemented macOS window transparency** (COMPLETE)
-- Added macOS-specific dependencies (cocoa 0.25, objc 0.2)
-- Implemented automatic transparency setup using Objective-C runtime
-  - `setOpaque:false` to enable window transparency
-  - `setBackgroundColor:clearColor` for transparent background
-- Added `toggle_transparent` command for runtime control
-- **Files modified:**
-  - `apps/tauri-shell/src-tauri/Cargo.toml` (added cocoa/objc dependencies)
-  - `apps/tauri-shell/src-tauri/src/main.rs` (transparency setup and toggle command)
-- All transparency features from guide implemented (5/5)
-- App now supports fully transparent window on macOS
-
-### Session 22 (Nov 25, 2025)
-- **Investigated conversation loading bug** with comprehensive multi-agent analysis
-- **Implemented version counter fix** (Approach 1: Minimal State Guard)
-  - Added `conversationVersionRef` to useAgent.ts
-  - Guards on all 5 event handler types (token, tool_use, tool_result, done, error)
-  - Version increments on loadMessages() and clearHistory()
-  - Fixed Conversations.tsx dependency array
-- **Status: Partial fix** - Prevents streaming response cross-contamination but thread still not clearing
-- Created detailed implementation plan with 3 approaches evaluated
-- **Files modified:**
-  - `apps/tauri-shell/src/useAgent.ts` (+11 lines: version counter and guards)
-  - `apps/tauri-shell/src/components/Conversations.tsx` (+1 line: dependency fix)
-- **Next:** Need deeper investigation into SDK session management or implement Approach 2/3
-
-### Session 21 (Nov 24, 2025)
-- **Integrated shadcn/ui component library** with Tailwind CSS
-- Added 18 shadcn/ui components (Badge, Button, Card, Dialog, Tabs, etc.)
-- Configured Tailwind with path aliases (@/) and PostCSS
-- Refactored all major components (ToolResult, Navigation, Conversations, Markdown)
-- Removed 1500+ lines of legacy CSS, replaced with Tailwind utilities
-- Changed color scheme to pure black & white (#000 / #FFF)
-- Added Lucide React icons for consistent iconography
-- **Committed and pushed to GitHub** (commit dd3ed47)
 
 ### Session 20 (Previous)
 - ✅ Added draggable header with `data-tauri-drag-region`

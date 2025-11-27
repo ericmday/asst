@@ -558,6 +558,7 @@ name = "desktop-assistant"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64 0.21.7",
  "cocoa 0.25.0",
  "objc",
  "once_cell",

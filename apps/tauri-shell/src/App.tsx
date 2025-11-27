@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { X, Trash2, Menu, Pin, StopCircle } from 'lucide-react'
+import { X, Trash2, Menu, Pin, StopCircle, Paperclip } from 'lucide-react'
 import { appWindow, LogicalSize } from '@tauri-apps/api/window'
+import { invoke } from '@tauri-apps/api/tauri'
 import { useAgent } from './useAgent'
 import { useAgentLogs } from './useAgentLogs'
 import { ToolResult } from './components/ToolResult'
@@ -50,6 +51,8 @@ function App() {
   const [isExpanded, setIsExpanded] = useState(false)
   const [shouldAutoCompact, setShouldAutoCompact] = useState(true)
   const [isPinned, setIsPinned] = useState(false)
+  const [isPickingFile, setIsPickingFile] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const slashMenuRef = useRef<HTMLDivElement>(null)
@@ -239,6 +242,70 @@ function App() {
 
   const removeImage = (index: number) => {
     setPastedImages(prev => prev.filter((_, i) => i !== index))
+    resetInactivityTimer()
+  }
+
+  const handleFilePicker = async () => {
+    try {
+      setIsPickingFile(true)
+      const filePath = await invoke<string | null>('open_image_picker')
+      if (!filePath) return
+
+      const imageData = await invoke<{ data: string; mime_type: string; name: string }>(
+        'read_image_as_base64',
+        { path: filePath }
+      )
+
+      setPastedImages(prev => [
+        ...prev,
+        {
+          data: imageData.data,
+          mimeType: imageData.mime_type,
+          name: imageData.name,
+        },
+      ])
+
+      resetInactivityTimer()
+    } catch (error) {
+      console.error('Failed to pick image:', error)
+    } finally {
+      setIsPickingFile(false)
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+
+    const files = Array.from(e.dataTransfer.files)
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) continue
+
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        const base64 = event.target?.result as string
+        const base64Data = base64.split(',')[1]
+        setPastedImages(prev => [
+          ...prev,
+          {
+            data: base64Data,
+            mimeType: file.type,
+            name: file.name,
+          },
+        ])
+      }
+      reader.readAsDataURL(file)
+    }
     resetInactivityTimer()
   }
 
@@ -596,7 +663,28 @@ function App() {
             </div>
           </Card>
         )}
-        <div className={cn(isExpanded ? "p-3" : "p-2", "relative")}>
+        <div
+          className={cn(
+            isExpanded ? "p-3" : "p-2",
+            "relative flex items-end gap-2",
+            isDragging && "ring-2 ring-primary ring-inset rounded-lg"
+          )}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          {isExpanded && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleFilePicker}
+              disabled={!isAgentReady || isLoading || isPickingFile}
+              aria-label="Attach image"
+              className="mb-1"
+            >
+              <Paperclip size={20} />
+            </Button>
+          )}
           <Textarea
             ref={textareaRef}
             value={inputValue}
@@ -605,7 +693,7 @@ function App() {
             onPaste={handlePaste}
             placeholder={isExpanded ? (isAgentReady ? "Type a message or paste an image..." : "Starting agent...") : "Assistant"}
             disabled={!isAgentReady || isLoading}
-            className={cn("min-h-[42px] max-h-[120px] resize-none rounded-full px-4", isLoading && "pr-12")}
+            className={cn("min-h-[42px] max-h-[120px] resize-none rounded-full px-4 flex-1", isLoading && "pr-12")}
             rows={1}
             aria-label="Message input"
           />
