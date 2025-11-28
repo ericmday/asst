@@ -24,11 +24,15 @@ Lightweight, always-available desktop assistant with tray icon, global hotkey (`
 
 | Layer | Technology |
 |-------|------------|
-| Shell | Tauri (Rust) |
-| UI | React + TypeScript + Zustand |
-| Agent | Node.js + Anthropic SDK |
+| Shell | Tauri 1.5 (Rust) |
+| UI | React 18 + TypeScript + Vite |
+| State | Zustand |
+| Styling | Tailwind CSS + shadcn/ui (Radix UI) |
+| Markdown | react-markdown + remark-gfm |
+| Agent | Node.js 20+ + Claude Agent SDK 0.1.50 |
+| Storage | SQLite (better-sqlite3) |
 | IPC | Stdio (line-delimited JSON) |
-| Tools | Sandboxed filesystem, system, API integrations |
+| Tools | 11 SDK tools (filesystem, bash, clipboard, open, etc.) |
 
 ## 🏗️ Architecture
 
@@ -51,22 +55,27 @@ Lightweight, always-available desktop assistant with tray icon, global hotkey (`
 
 ```
 desktop-assistant/
-├─ claude.md              # This file
-├─ STATUS.md              # Progress tracking
+├─ claude.md              # This file (project context map)
+├─ STATUS.md              # Progress tracking & changelog
 ├─ docs/                  # Implementation guides
 ├─ apps/
 │  ├─ tauri-shell/        # Rust + React UI
-│  └─ agent-runtime/      # Node agent process
-└─ package.json           # Workspace root
+│  │  ├─ src-tauri/       # Rust backend (IPC, window, tray)
+│  │  └─ src/             # React frontend (UI components)
+│  └─ agent-runtime/      # Node agent process (Claude SDK)
+└─ package.json           # pnpm workspace root
 ```
 
 ## 🔑 Quick Reference
 
-- **Window Size:** 360×600 (resizable)
+- **Window Size:** 365×60 (compact) → 365×600 (expanded)
 - **Global Shortcut:** `Cmd+Shift+Space`
+- **Auto-Compact:** 5-minute inactivity timeout
 - **IPC Format:** `{"id":"...","kind":"...",...}\n`
 - **Model:** `claude-3-5-sonnet-20241022`
-- **Security:** OS keychain for keys, sandboxed tools, audit logs
+- **Image Upload:** Paste (Cmd+V), File Picker, Drag-and-drop
+- **Storage:** SQLite conversation history
+- **Security:** OS keychain for keys, sandboxed tools, macOS entitlements
 
 ## 📝 Workflow
 
