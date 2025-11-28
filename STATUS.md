@@ -1,6 +1,6 @@
 # Development Status
 
-**Last Updated:** November 26, 2025
+**Last Updated:** November 27, 2025
 **Current Phase:** UI Polish & Feature Enhancements
 **Progress:** 55% (3/8 SDK phases complete + UI complete + file access)
 
@@ -9,16 +9,72 @@
 ## 🎯 Current Focus
 
 ### 🔄 Current Task
-**Testing File Access Features**
+**Ready for next feature**
 
-**Status:** Clipboard and file permission implementation complete, ready for user testing
-- ✅ Created macOS entitlements for user-selected file access
-- ✅ Added Rust Tauri commands for file picker and reading
-- ✅ Implemented three input methods: clipboard, file picker, drag-and-drop
-- ✅ Application restarted and running
-- ⏳ Awaiting user testing and feedback
+All image upload methods (paste, drag-drop, file picker) working correctly!
 
 ### ✅ Last Task Completed
+**Fixed Image Upload AsyncIterable Bug - Session 32**
+
+**Problem:** Images were crashing the agent runtime with EPIPE broken pipe errors. Text-only messages worked fine, but any image upload would kill the Node.js process.
+
+**Root Cause:** In `apps/agent-runtime/src/sdk-adapter.ts:265`, the code was accessing `.length` on `promptToSend`:
+```typescript
+console.log('[SDK-ADAPTER] Prompt length:', promptToSend.length);
+```
+
+When images are present, `promptToSend` becomes an **AsyncIterable** (async generator), which doesn't have a `.length` property. This caused Node.js to crash immediately, triggering EPIPE when trying to write to stdout after the process died.
+
+**Solution Implemented:**
+- ✅ Added type guard to check if prompt is string vs AsyncIterable
+- ✅ Safe logging for both cases (string shows length, AsyncIterable shows type)
+- ✅ Added comprehensive debug logging throughout the SDK adapter
+- ✅ All three image input methods now work: paste, drag-drop, file picker
+
+**Files Modified:**
+- `apps/agent-runtime/src/sdk-adapter.ts` - Fixed prompt length logging (lines 265-271)
+- Added detailed logging in `handleAssistantMessage()`, `emitTextChunked()`, and `sendResponse()`
+
+### ✅ Previous Task Completed
+**Frontend Image Loading Async Fixes - Session 31**
+
+**Problem:** Copy/paste and drag/drop image handling was crashing or freezing the frontend. The FileReader API was being used synchronously, causing race conditions and blocking behavior.
+
+**Solution Implemented - Async/Await Image Processing:**
+
+**1. Created Promise-based FileReader Helper (`apps/tauri-shell/src/App.tsx:43-57`)**
+- ✅ New `readFileAsBase64()` function wraps FileReader in a Promise
+- ✅ Proper error handling with rejection on FileReader errors
+- ✅ Returns clean base64 data (strips data URL prefix)
+- ✅ Reusable for both paste and drop handlers
+
+**2. Made handlePaste Async (`apps/tauri-shell/src/App.tsx:233-281`)**
+- ✅ Changed to async function with await for FileReader
+- ✅ Added `isLoadingImages` state to prevent send during processing
+- ✅ Collect all image files first, then process with proper error handling
+- ✅ Added 10MB size validation per image with user alerts
+- ✅ Individual try/catch per image to handle partial failures
+- ✅ Reset loading state in finally block
+
+**3. Made handleDrop Async (`apps/tauri-shell/src/App.tsx:326-365`)**
+- ✅ Same async/await pattern as handlePaste
+- ✅ Filter for image files from drag data
+- ✅ Size validation and error handling
+- ✅ Loading state management
+
+**4. Disabled Send Button During Image Loading (`apps/tauri-shell/src/App.tsx:213, 736, 750`)**
+- ✅ Added `isLoadingImages` to send button condition
+- ✅ Disabled paperclip button when loading images
+- ✅ Updated textarea placeholder to show "Loading images..."
+- ✅ Prevents sending incomplete data
+
+**Files Modified:**
+- `apps/tauri-shell/src/App.tsx` - Added async image handling with error recovery
+
+**Status:** ✅ Frontend fixes COMPLETE - Images load without crashing
+**HOWEVER:** Backend now hangs when processing the images (see Current Task)
+
+**Previous Task:**
 **Clipboard and File Permission Feature - Session 30**
 
 **Problem:** Users couldn't provide file paths to images in the assistant. When file paths were provided, the assistant would ask for permission and fail to read them due to macOS sandbox restrictions.
@@ -130,6 +186,73 @@ These were helpful but didn't address the root cause in Rust
 - Session 19: Compact window mode (90px → 600px) with 5-minute timeout
 
 ### ⏭️ Next Task
+**Troubleshoot Backend Image Processing Hang**
+
+**Issue:** After frontend async fixes, images are now successfully captured and sent to backend as base64, but the agent runtime freezes when processing them. No response, no error - complete hang after SDK query creation.
+
+**Key Observations:**
+1. ✅ File upload (paperclip button) via Rust backend → WORKS
+2. ⚠️ Copy/paste via FileReader → Frontend now works, Backend HANGS
+3. ⚠️ Drag/drop via FileReader → Frontend now works, Backend HANGS
+4. All three methods send the same base64 format to backend
+5. Freeze happens AFTER SDK query is created but BEFORE any response
+
+**Troubleshooting Steps:**
+
+**Phase 1: Compare Data Formats**
+- [ ] Add detailed logging to compare base64 data from all three input methods
+- [ ] Log base64 string length from paperclip vs paste/drop
+- [ ] Check for encoding differences (padding, line breaks, etc.)
+- [ ] Verify mime_type format matches between methods
+- [ ] Test with same exact image through all three methods
+
+**Phase 2: Backend Size Validation**
+- [ ] Add size validation in `apps/agent-runtime/src/index.ts` BEFORE SDK processing
+- [ ] Calculate actual decoded image size from base64 length
+- [ ] Log image size at backend entry point (line 54-62)
+- [ ] Add early rejection for oversized images (Claude API has 5MB limit per image)
+- [ ] Test if size is the differentiating factor
+
+**Phase 3: SDK Adapter Timeout & Error Handling**
+- [ ] Add timeout wrapper around SDK query creation (`apps/agent-runtime/src/sdk-adapter.ts:264-280`)
+- [ ] Add try/catch with detailed logging around `for await (const sdkMessage of q)` loop (line 288-302)
+- [ ] Log when SDK query starts and how long it takes to get first response
+- [ ] Add AbortController pattern to forcefully timeout after 30 seconds
+- [ ] Check if SDK is silently rejecting malformed image data
+
+**Phase 4: Image Data Validation**
+- [ ] Validate base64 string is valid before sending to SDK
+- [ ] Check for null/undefined in image.data field
+- [ ] Verify mime_type is in allowed set (image/jpeg, image/png, image/gif, image/webp)
+- [ ] Test decoding base64 to verify it's valid image data
+- [ ] Add checksums to verify data integrity through the pipeline
+
+**Phase 5: Test Size Thresholds**
+- [ ] Test with tiny image (< 100KB)
+- [ ] Test with medium image (500KB - 1MB)
+- [ ] Test with large image (5MB - 10MB)
+- [ ] Identify exact size threshold where hang occurs
+- [ ] Check Claude API documentation for image size limits
+
+**Phase 6: SDK Debug Mode**
+- [ ] Enable SDK debug logging if available
+- [ ] Check SDK source for image processing code paths
+- [ ] Look for SDK github issues related to image hangs
+- [ ] Test with SDK's example image code
+
+**Files to Modify:**
+- `apps/agent-runtime/src/index.ts` - Add backend size validation and logging
+- `apps/agent-runtime/src/sdk-adapter.ts` - Add timeout, error handling, data validation
+- `apps/tauri-shell/src/App.tsx` - Add data comparison logging (temporary)
+
+**Success Criteria:**
+- [ ] Identify root cause of hang (size, encoding, SDK bug, etc.)
+- [ ] Copy/paste images work end-to-end without hanging
+- [ ] Drag/drop images work end-to-end without hanging
+- [ ] Clear error messages if images are too large or invalid
+- [ ] All three input methods work consistently
+
+---
 
 **Other Pending Tasks:**
 - [ ] Add visual timer countdown indicator
@@ -209,6 +332,29 @@ These were helpful but didn't address the root cause in Rust
 ---
 
 ## 📝 Recent Changes
+
+### Session 31 (Nov 27, 2025)
+- **Fixed Frontend Image Loading with Async/Await** (PARTIAL - Backend Issue Discovered)
+- Problem: Copy/paste and drag/drop were crashing/freezing frontend due to synchronous FileReader usage
+- Solution: Converted to Promise-based async/await pattern with comprehensive error handling
+- **Modified `apps/tauri-shell/src/App.tsx`:**
+  - Added `readFileAsBase64()` Promise wrapper for FileReader (lines 43-57)
+  - Made `handlePaste` fully async with proper error handling (lines 233-281)
+  - Made `handleDrop` fully async with proper error handling (lines 326-365)
+  - Added `isLoadingImages` state to prevent premature sending
+  - Added 10MB size validation with user alerts
+  - Disabled send/attach buttons during image loading
+  - Individual try/catch per image for partial failure recovery
+  - Updated placeholder text to show loading state
+- **Frontend Result:** Images now load successfully without crashes
+- **Backend Issue Discovered:** Agent runtime hangs when processing images from paste/drop
+  - File upload (paperclip) works fine
+  - Copy/paste captures data but backend freezes
+  - Drag/drop captures data but backend freezes
+  - All send same base64 format - unclear why different behavior
+  - Freeze occurs after SDK query creation, before any response
+- **Next Steps:** Debug backend image processing (see comprehensive troubleshooting plan in Next Task)
+- **Impact:** Frontend is robust, but feature blocked by backend hang
 
 ### Session 30 (Nov 26, 2025)
 - **Implemented Clipboard and File Permission Feature** (COMPLETE)

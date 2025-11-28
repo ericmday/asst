@@ -174,13 +174,13 @@ export class SDKAdapter {
           // We could add agent name as prefix or metadata but SDK handles it
         } else {
           // Invalid agent name - inform user
-          this.emit({
+          this.sendResponse({
             type: 'token',
             id: requestId,
             token: `Unknown agent '@${agentName}'. Available agents: ${Object.keys(this.agents).join(', ')}`,
             timestamp: Date.now()
           });
-          this.emit({
+          this.sendResponse({
             type: 'done',
             id: requestId,
             timestamp: Date.now()
@@ -200,37 +200,133 @@ export class SDKAdapter {
       }
 
       // Build prompt with text and images
-      let prompt = message;
+      // The SDK query() accepts: string | AsyncIterable<SDKUserMessage>
+      // SDKUserMessage contains an APIUserMessage (MessageParam from Anthropic SDK)
+      // MessageParam.content can be: string | Array<TextBlockParam | ImageBlockParam>
 
-      // TODO: Handle image attachments when SDK supports them
-      // For now, images will be handled separately through vision tools
+      let promptToSend: string | AsyncIterable<SDKUserMessage>;
 
-      // Create SDK query with configuration
-      const q = query({
-        prompt,
-        options: {
-          model: this.config.modelId || 'claude-sonnet-4-5-20250929',
-          resume: this.currentSessionId,  // Resume previous conversation if available
-          mcpServers: {
-            'desktop-assistant-tools': this.mcpServer  // Register MCP server with tools
-          },
-          maxTurns: 10, // Limit agentic loop iterations
-          agents: this.agents  // Register SDK subagents
+      // If we have images, we need to build a proper content array
+      if (images && images.length > 0) {
+        console.log(`[SDK-ADAPTER] Processing ${images.length} image(s) for SDK`);
+
+        // Build content array with text and images using proper Anthropic API types
+        const contentParts: Array<{ type: 'text'; text: string } | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }> = [];
+
+        // Add text content first
+        if (message.trim()) {
+          contentParts.push({
+            type: 'text',
+            text: message
+          });
+          console.log('[SDK-ADAPTER] Added text content to content array');
         }
-      });
+
+        // Add image content blocks
+        for (const img of images) {
+          console.log(`[SDK-ADAPTER] Image: ${img.mime_type}, Base64 length: ${img.data?.length || 0}`);
+          contentParts.push({
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: img.mime_type as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+              data: img.data
+            }
+          });
+        }
+
+        console.log(`[SDK-ADAPTER] Created content array with ${contentParts.length} parts`);
+        this.log('info', `Sending ${images.length} image(s) to Claude`);
+
+        // Create an async iterable that yields a single SDKUserMessage
+        // This wraps the content array in the proper SDK message format
+        promptToSend = (async function* () {
+          yield {
+            type: 'user' as const,
+            message: {
+              role: 'user' as const,
+              content: contentParts
+            },
+            parent_tool_use_id: null
+          } as SDKUserMessage;
+        })();
+
+        console.log('[SDK-ADAPTER] Created AsyncIterable<SDKUserMessage> with multimodal content');
+      } else {
+        // For text-only messages, pass as simple string
+        promptToSend = message;
+        console.log('[SDK-ADAPTER] Using simple string prompt (text-only)');
+      }
+
+      // Create SDK query - wrap in try-catch for better error handling
+      let q: Query;
+      try {
+        console.log('[SDK-ADAPTER] Creating SDK query...');
+        // Only log length for string prompts, not AsyncIterables
+        if (typeof promptToSend === 'string') {
+          console.log('[SDK-ADAPTER] Prompt length:', promptToSend.length);
+        } else {
+          console.log('[SDK-ADAPTER] Prompt type: AsyncIterable (with images)');
+        }
+        console.log('[SDK-ADAPTER] Image count:', images?.length || 0);
+
+        q = query({
+          prompt: promptToSend,
+          options: {
+            model: this.config.modelId || 'claude-sonnet-4-5-20250929',
+            resume: this.currentSessionId,  // Resume previous conversation if available
+            mcpServers: {
+              'desktop-assistant-tools': this.mcpServer  // Register MCP server with tools
+            },
+            maxTurns: 10, // Limit agentic loop iterations
+            agents: this.agents  // Register SDK subagents
+          }
+        });
+        console.log('[SDK-ADAPTER] ✅ SDK query created successfully');
+      } catch (error) {
+        this.log('error', 'Failed to create SDK query:', error);
+        throw new Error(`SDK query creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
 
       // Store reference to current query for interrupt support
       this.currentQuery = q;
 
       // Stream SDK messages and convert to IPC format
-      for await (const sdkMessage of q) {
-        // Capture session ID from first message for conversation continuity
-        if (!this.currentSessionId && 'session_id' in sdkMessage) {
-          this.currentSessionId = sdkMessage.session_id;
-          this.log('info', `Session started: ${this.currentSessionId}`);
+      // Wrap in try-catch to catch any streaming errors
+      try {
+        console.log('[SDK-ADAPTER] Starting SDK message stream...');
+        let messageCount = 0;
+        let lastMessageTime = Date.now();
+
+        // Set up timeout monitor (log every 5 seconds if no messages received)
+        const timeoutMonitor = setInterval(() => {
+          const timeSinceLastMessage = (Date.now() - lastMessageTime) / 1000;
+          if (timeSinceLastMessage > 5) {
+            console.warn(`[SDK-ADAPTER] ⚠️  No SDK messages received for ${timeSinceLastMessage.toFixed(1)}s (received ${messageCount} messages so far)`);
+          }
+        }, 5000);
+
+        for await (const sdkMessage of q) {
+          messageCount++;
+          lastMessageTime = Date.now();
+          console.log(`[SDK-ADAPTER] Received SDK message #${messageCount}:`, sdkMessage.type || 'unknown type');
+
+          // Capture session ID from first message for conversation continuity
+          if (!this.currentSessionId && 'session_id' in sdkMessage) {
+            this.currentSessionId = sdkMessage.session_id;
+            this.log('info', `Session started: ${this.currentSessionId}`);
+          }
+
+          await this.handleSDKMessage(sdkMessage);
         }
 
-        await this.handleSDKMessage(sdkMessage);
+        clearInterval(timeoutMonitor);
+        console.log(`[SDK-ADAPTER] ✅ SDK stream complete. Received ${messageCount} messages total.`);
+      } catch (streamError) {
+        this.log('error', 'SDK streaming error:', streamError);
+        // Clear query reference
+        this.currentQuery = undefined;
+        throw new Error(`SDK streaming failed: ${streamError instanceof Error ? streamError.message : 'Unknown streaming error'}`);
       }
 
       // Save assistant's complete response to database
@@ -385,19 +481,26 @@ export class SDKAdapter {
    * Handle complete assistant message (non-streaming mode)
    */
   private async handleAssistantMessage(message: SDKAssistantMessage): Promise<void> {
+    console.log('[SDK-ADAPTER] handleAssistantMessage called');
+
     if (message.error) {
+      console.error('[SDK-ADAPTER] Assistant error:', message.error);
       this.sendError(`Assistant error: ${message.error}`);
       return;
     }
 
     // Extract text content from the API message
     const apiMessage = message.message;
+    console.log('[SDK-ADAPTER] API message content blocks:', apiMessage.content.length);
     let textContent = '';
 
     for (const block of apiMessage.content) {
+      console.log('[SDK-ADAPTER] Processing content block:', block.type);
       if (block.type === 'text') {
         textContent += block.text;
+        console.log('[SDK-ADAPTER] Added text block, total length:', textContent.length);
       } else if (block.type === 'tool_use') {
+        console.log('[SDK-ADAPTER] Emitting tool use:', block.name);
         // Emit tool use event
         this.sendResponse({
           type: 'tool_use',
@@ -413,8 +516,13 @@ export class SDKAdapter {
     }
 
     // Simulate streaming for text content
+    console.log('[SDK-ADAPTER] Final text content length:', textContent.length);
     if (textContent) {
+      console.log('[SDK-ADAPTER] Calling emitTextChunked with text preview:', textContent.substring(0, 100));
       await this.emitTextChunked(textContent);
+      console.log('[SDK-ADAPTER] emitTextChunked completed');
+    } else {
+      console.warn('[SDK-ADAPTER] ⚠️  No text content to emit!');
     }
   }
 
@@ -486,11 +594,13 @@ export class SDKAdapter {
    * @param text - Full text to emit
    */
   private async emitTextChunked(text: string): Promise<void> {
+    console.log('[SDK-ADAPTER] emitTextChunked START - text length:', text.length);
     // Accumulate text for database storage
     this.currentAssistantMessage += text;
 
     // Split text into words while preserving whitespace
     const words = text.split(/(\s+)/);
+    console.log('[SDK-ADAPTER] Split into', words.length, 'word chunks');
 
     for (const word of words) {
       if (word.length > 0) {
@@ -508,6 +618,7 @@ export class SDKAdapter {
         }
       }
     }
+    console.log('[SDK-ADAPTER] emitTextChunked END - emitted', words.length, 'chunks');
   }
 
   /**
@@ -577,9 +688,43 @@ Title:`
 
   /**
    * Send an IPC response to the Tauri shell via stdout
+   *
+   * Handles large payloads and broken pipe errors gracefully
    */
   private sendResponse(response: AgentResponse): void {
-    console.log(JSON.stringify(response));
+    try {
+      const json = JSON.stringify(response);
+
+      // Log token responses at debug level (only first few chars to avoid spam)
+      if (response.type === 'token') {
+        const tokenPreview = response.token?.substring(0, 20) || '';
+        console.log(`[SDK-ADAPTER] Sending token: "${tokenPreview}${response.token && response.token.length > 20 ? '...' : ''}"`);
+      } else {
+        console.log('[SDK-ADAPTER] Sending response:', response.type, 'id:', response.id);
+      }
+
+      // Check if stdout is writable before writing
+      if (!process.stdout.writable) {
+        this.log('error', 'stdout is not writable - pipe may be closed');
+        return;
+      }
+
+      // Write to stdout with error handling
+      const success = process.stdout.write(json + '\n');
+
+      if (!success) {
+        // Backpressure detected - stdout buffer is full
+        // Wait for drain event before continuing
+        this.log('warn', 'stdout buffer full - backpressure detected');
+      }
+    } catch (error) {
+      // Handle EPIPE and other write errors gracefully
+      if ((error as any).code === 'EPIPE') {
+        this.log('error', 'Broken pipe - parent process may have closed stdout');
+      } else {
+        this.log('error', 'Failed to send response:', error);
+      }
+    }
   }
 
   /**
