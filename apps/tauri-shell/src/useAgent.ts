@@ -176,6 +176,13 @@ export function useAgent(callbacks?: {
         name: img.name,
       }));
 
+      if (attachments && attachments.length > 0) {
+        console.log(`[UI] Sending ${attachments.length} image(s) to backend`);
+        attachments.forEach((att, i) => {
+          console.log(`[UI] Image ${i + 1}: ${att.mime_type}, Base64 sent: ${att.data.substring(0, 20)}...`);
+        });
+      }
+
       await invoke('send_message', {
         id,
         message,

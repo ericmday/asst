@@ -30,9 +30,11 @@ async function main() {
     console.error('[INFO] SDK adapter initialized');
 
     // Setup stdio IPC
+    // IMPORTANT: Do NOT set output to process.stdout - it conflicts with our IPC protocol
+    // which uses console.log() to write JSON responses to stdout.
+    // Readline only needs stdin for reading incoming requests.
     const rl = createInterface({
       input: process.stdin,
-      output: process.stdout,
       terminal: false,
     });
 
@@ -50,6 +52,35 @@ async function main() {
               if (request.images) {
                 try {
                   images = JSON.parse(request.images);
+                  console.log(`[RUNTIME] Received ${images.length} image(s) from frontend`);
+
+                  images.forEach((img, i) => {
+                    // Calculate decoded size (base64 is ~33% larger than binary)
+                    const base64Length = img.data?.length || 0;
+                    const decodedSizeBytes = (base64Length * 3) / 4;
+                    const decodedSizeMB = decodedSizeBytes / 1024 / 1024;
+
+                    console.log(`[RUNTIME] ===== Image ${i + 1} Analysis =====`);
+                    console.log(`[RUNTIME]   Name: ${img.name}`);
+                    console.log(`[RUNTIME]   MIME Type: ${img.mime_type}`);
+                    console.log(`[RUNTIME]   Base64 length: ${base64Length.toLocaleString()} chars`);
+                    console.log(`[RUNTIME]   Decoded size: ${decodedSizeMB.toFixed(2)} MB`);
+                    console.log(`[RUNTIME]   Has data prefix: ${img.data?.startsWith('data:')}`);
+                    console.log(`[RUNTIME]   First 30 chars: ${img.data?.substring(0, 30)}...`);
+                    console.log(`[RUNTIME]   Last 30 chars: ...${img.data?.substring(base64Length - 30)}`);
+
+                    // Claude API has 5MB limit per image
+                    if (decodedSizeMB > 5) {
+                      console.warn(`[RUNTIME] ⚠️  WARNING: Image ${i + 1} exceeds Claude API 5MB limit (${decodedSizeMB.toFixed(2)} MB)`);
+                    }
+
+                    // Validate base64 format
+                    if (img.data?.startsWith('data:')) {
+                      console.error(`[RUNTIME] ❌ ERROR: Image ${i + 1} has data URL prefix - should be raw base64!`);
+                    }
+                  });
+
+                  console.log(`[RUNTIME] ===== End Image Analysis =====`);
                 } catch (e) {
                   console.error('[ERROR] Failed to parse image attachments:', e);
                 }
@@ -188,6 +219,24 @@ process.on('SIGTERM', () => {
 process.on('SIGINT', () => {
   console.error('Received SIGINT, shutting down...');
   process.exit(0);
+});
+
+// Handle EPIPE errors gracefully (broken pipe when parent process closes)
+process.on('uncaughtException', (error) => {
+  if ((error as any).code === 'EPIPE') {
+    console.error('EPIPE error caught - parent process likely closed the pipe');
+    process.exit(0);
+  } else {
+    console.error('Uncaught exception:', error);
+    process.exit(1);
+  }
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled promise rejection:', reason);
+  console.error('Promise:', promise);
+  // Don't exit on unhandled rejections, just log them
 });
 
 main();

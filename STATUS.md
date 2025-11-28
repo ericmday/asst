@@ -11,9 +11,32 @@
 ### 🔄 Current Task
 **Ready for next feature**
 
-All image upload methods (paste, drag-drop, file picker) working correctly!
+All three image upload methods now fully working: paste (Cmd+V), file picker (paperclip), and drag-and-drop!
 
 ### ✅ Last Task Completed
+**Fixed Drag-and-Drop Image Upload - Session 33**
+
+**Problem:** Drag-and-drop image upload wasn't working at all. Users could paste images (Cmd+V) and use the file picker (paperclip button), but dragging images from Finder onto the window did nothing.
+
+**Root Cause:** Tauri's native `fileDrop` API was enabled by default, which **blocks HTML5 drag events** from reaching the React app. The native handler expects special Tauri event listeners, but the app was using standard HTML5 drag/drop handlers.
+
+**Solution Implemented:**
+- ✅ Disabled Tauri's native file drop handler with `fileDropEnabled: false` in `tauri.conf.json`
+- ✅ Enhanced React drag handlers with proper event handling:
+  - Added `onDragEnter` to detect when dragging starts over window
+  - Added `stopPropagation()` to prevent event bubbling issues
+  - Added `currentTarget` checks to avoid false `onDragLeave` triggers on child elements
+- ✅ Moved drop zone to entire window root instead of just input area for better UX
+- ✅ Added visual feedback with `ring-4 ring-primary` border when dragging over window
+- ✅ All three image input methods now work consistently: paste, file picker, drag-and-drop
+
+**Files Modified:**
+- `apps/tauri-shell/src-tauri/tauri.conf.json` - Added `fileDropEnabled: false` to window config
+- `apps/tauri-shell/src/App.tsx` - Enhanced drag handlers, moved to root div, improved visual feedback
+
+**Status:** ✅ COMPLETE - All three image input methods working perfectly
+
+### ✅ Previous Task Completed
 **Fixed Image Upload AsyncIterable Bug - Session 32**
 
 **Problem:** Images were crashing the agent runtime with EPIPE broken pipe errors. Text-only messages worked fine, but any image upload would kill the Node.js process.
@@ -35,7 +58,7 @@ When images are present, `promptToSend` becomes an **AsyncIterable** (async gene
 - `apps/agent-runtime/src/sdk-adapter.ts` - Fixed prompt length logging (lines 265-271)
 - Added detailed logging in `handleAssistantMessage()`, `emitTextChunked()`, and `sendResponse()`
 
-### ✅ Previous Task Completed
+**Earlier Task:**
 **Frontend Image Loading Async Fixes - Session 31**
 
 **Problem:** Copy/paste and drag/drop image handling was crashing or freezing the frontend. The FileReader API was being used synchronously, causing race conditions and blocking behavior.
@@ -186,71 +209,20 @@ These were helpful but didn't address the root cause in Rust
 - Session 19: Compact window mode (90px → 600px) with 5-minute timeout
 
 ### ⏭️ Next Task
-**Troubleshoot Backend Image Processing Hang**
+**Ready for Next Feature or Enhancement**
 
-**Issue:** After frontend async fixes, images are now successfully captured and sent to backend as base64, but the agent runtime freezes when processing them. No response, no error - complete hang after SDK query creation.
+The image upload feature is now complete with all three input methods working:
+- ✅ Paste (Cmd+V)
+- ✅ File picker (paperclip button)
+- ✅ Drag-and-drop from Finder
 
-**Key Observations:**
-1. ✅ File upload (paperclip button) via Rust backend → WORKS
-2. ⚠️ Copy/paste via FileReader → Frontend now works, Backend HANGS
-3. ⚠️ Drag/drop via FileReader → Frontend now works, Backend HANGS
-4. All three methods send the same base64 format to backend
-5. Freeze happens AFTER SDK query is created but BEFORE any response
-
-**Troubleshooting Steps:**
-
-**Phase 1: Compare Data Formats**
-- [ ] Add detailed logging to compare base64 data from all three input methods
-- [ ] Log base64 string length from paperclip vs paste/drop
-- [ ] Check for encoding differences (padding, line breaks, etc.)
-- [ ] Verify mime_type format matches between methods
-- [ ] Test with same exact image through all three methods
-
-**Phase 2: Backend Size Validation**
-- [ ] Add size validation in `apps/agent-runtime/src/index.ts` BEFORE SDK processing
-- [ ] Calculate actual decoded image size from base64 length
-- [ ] Log image size at backend entry point (line 54-62)
-- [ ] Add early rejection for oversized images (Claude API has 5MB limit per image)
-- [ ] Test if size is the differentiating factor
-
-**Phase 3: SDK Adapter Timeout & Error Handling**
-- [ ] Add timeout wrapper around SDK query creation (`apps/agent-runtime/src/sdk-adapter.ts:264-280`)
-- [ ] Add try/catch with detailed logging around `for await (const sdkMessage of q)` loop (line 288-302)
-- [ ] Log when SDK query starts and how long it takes to get first response
-- [ ] Add AbortController pattern to forcefully timeout after 30 seconds
-- [ ] Check if SDK is silently rejecting malformed image data
-
-**Phase 4: Image Data Validation**
-- [ ] Validate base64 string is valid before sending to SDK
-- [ ] Check for null/undefined in image.data field
-- [ ] Verify mime_type is in allowed set (image/jpeg, image/png, image/gif, image/webp)
-- [ ] Test decoding base64 to verify it's valid image data
-- [ ] Add checksums to verify data integrity through the pipeline
-
-**Phase 5: Test Size Thresholds**
-- [ ] Test with tiny image (< 100KB)
-- [ ] Test with medium image (500KB - 1MB)
-- [ ] Test with large image (5MB - 10MB)
-- [ ] Identify exact size threshold where hang occurs
-- [ ] Check Claude API documentation for image size limits
-
-**Phase 6: SDK Debug Mode**
-- [ ] Enable SDK debug logging if available
-- [ ] Check SDK source for image processing code paths
-- [ ] Look for SDK github issues related to image hangs
-- [ ] Test with SDK's example image code
-
-**Files to Modify:**
-- `apps/agent-runtime/src/index.ts` - Add backend size validation and logging
-- `apps/agent-runtime/src/sdk-adapter.ts` - Add timeout, error handling, data validation
-- `apps/tauri-shell/src/App.tsx` - Add data comparison logging (temporary)
-
-**Success Criteria:**
-- [ ] Identify root cause of hang (size, encoding, SDK bug, etc.)
-- [ ] Copy/paste images work end-to-end without hanging
-- [ ] Drag/drop images work end-to-end without hanging
-- [ ] Clear error messages if images are too large or invalid
-- [ ] All three input methods work consistently
+Potential next tasks to consider:
+- [ ] Add visual timer countdown indicator for auto-compact
+- [ ] Window position memory (remember last position)
+- [ ] Real-time conversation title updates in sidebar
+- [ ] Search/filter conversations
+- [ ] SDK Migration Phase 4+ (hooks, permissions, advanced features)
+- [ ] Additional tool implementations (clipboard, vision, etc.)
 
 ---
 
@@ -332,6 +304,34 @@ These were helpful but didn't address the root cause in Rust
 ---
 
 ## 📝 Recent Changes
+
+### Session 33 (Nov 27, 2025)
+- **Fixed Drag-and-Drop Image Upload** (COMPLETE)
+- Problem: Drag-and-drop wasn't working while paste and file picker worked fine
+- Root cause: Tauri's native `fileDrop` API was blocking HTML5 drag events
+- Solution: Disabled native handler with `fileDropEnabled: false` in tauri.conf.json
+- **Modified `apps/tauri-shell/src-tauri/tauri.conf.json`:**
+  - Added `fileDropEnabled: false` to window configuration
+- **Modified `apps/tauri-shell/src/App.tsx`:**
+  - Added `onDragEnter` handler to properly detect drag start
+  - Added `stopPropagation()` and `currentTarget` checks to prevent event issues
+  - Moved drop zone to root div for entire-window drop area
+  - Added visual feedback with `ring-4 ring-primary` border during drag
+  - Enhanced UX: can now drop images anywhere on window, not just input area
+- **Result:** All three image input methods now work perfectly
+  1. Paste (Cmd+V) - works
+  2. File picker (paperclip button) - works
+  3. Drag-and-drop from Finder - NOW WORKS
+- **Impact:** Complete image upload feature with three convenient input methods
+
+### Session 32 (Nov 27, 2025)
+- **Fixed Image Upload AsyncIterable Bug** (COMPLETE)
+- Problem: Images crashed agent runtime with EPIPE errors due to `.length` access on AsyncIterable
+- Solution: Added type guard for string vs AsyncIterable in SDK adapter logging
+- **Modified `apps/agent-runtime/src/sdk-adapter.ts`:**
+  - Fixed prompt length logging to handle both string and AsyncIterable types
+  - Added comprehensive debug logging throughout SDK adapter
+- **Impact:** Image uploads now work without crashing Node.js process
 
 ### Session 31 (Nov 27, 2025)
 - **Fixed Frontend Image Loading with Async/Await** (PARTIAL - Backend Issue Discovered)

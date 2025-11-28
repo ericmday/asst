@@ -36,6 +36,26 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { command: '/ultrathink', description: 'Enable extended thinking mode', example: '/ultrathink [your prompt]' },
 ]
 
+// Image size limit (10MB)
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024
+
+// Helper function to read file as base64 using FileReader with proper error handling
+const readFileAsBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string
+      // Remove data URL prefix to get just base64
+      const base64Data = base64.split(',')[1]
+      resolve(base64Data)
+    }
+    reader.onerror = (error) => {
+      reject(new Error(`Failed to read file: ${error}`))
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
 function App() {
   const [inputValue, setInputValue] = useState('')
   const [pastedImages, setPastedImages] = useState<ImageAttachment[]>([])
@@ -52,6 +72,7 @@ function App() {
   const [shouldAutoCompact, setShouldAutoCompact] = useState(true)
   const [isPinned, setIsPinned] = useState(false)
   const [isPickingFile, setIsPickingFile] = useState(false)
+  const [isLoadingImages, setIsLoadingImages] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -189,7 +210,7 @@ function App() {
   }, [])
 
   const handleSend = async () => {
-    if ((inputValue.trim() || pastedImages.length > 0) && !isLoading) {
+    if ((inputValue.trim() || pastedImages.length > 0) && !isLoading && !isLoadingImages) {
       // Expand window on first message if not already expanded
       if (!isExpanded && messages.length === 0) {
         console.log('[DEBUG] Expanding window...', { isExpanded, messageCount: messages.length })
@@ -213,30 +234,64 @@ function App() {
     const items = e.clipboardData?.items
     if (!items) return
 
+    const imageFiles: File[] = []
     for (let i = 0; i < items.length; i++) {
       const item = items[i]
-
       if (item.type.startsWith('image/')) {
         e.preventDefault()
         const file = item.getAsFile()
-        if (!file) continue
+        if (file) imageFiles.push(file)
+      }
+    }
 
-        const reader = new FileReader()
-        reader.onload = (event) => {
-          const base64 = event.target?.result as string
-          // Remove data URL prefix to get just base64
-          const base64Data = base64.split(',')[1]
+    if (imageFiles.length === 0) return
 
-          setPastedImages(prev => [...prev, {
+    setIsLoadingImages(true)
+    try {
+      const newImages: ImageAttachment[] = []
+
+      for (const file of imageFiles) {
+        // Validate file size
+        if (file.size > MAX_IMAGE_SIZE) {
+          console.error(`Image too large: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB). Max size: 10MB`)
+          alert(`Image "${file.name}" is too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 10MB.`)
+          continue
+        }
+
+        try {
+          const base64Data = await readFileAsBase64(file)
+          const imageData = {
             data: base64Data,
             mimeType: file.type,
             name: `pasted-image-${Date.now()}.${file.type.split('/')[1]}`
-          }])
+          }
+
+          // DETAILED LOGGING - PASTE METHOD
+          console.log('[PASTE] Image captured:', {
+            method: 'PASTE',
+            name: imageData.name,
+            mimeType: imageData.mimeType,
+            fileSize: file.size,
+            fileSizeMB: (file.size / 1024 / 1024).toFixed(2),
+            base64Length: base64Data.length,
+            base64Sample: base64Data.substring(0, 50) + '...',
+            hasDataPrefix: base64Data.startsWith('data:'),
+            firstChars: base64Data.substring(0, 20)
+          })
+
+          newImages.push(imageData)
+        } catch (error) {
+          console.error('Failed to read pasted image:', error)
+          alert(`Failed to read image: ${error instanceof Error ? error.message : 'Unknown error'}`)
         }
-        reader.readAsDataURL(file)
-        // Reset inactivity timer on user interaction
-        resetInactivityTimer()
       }
+
+      if (newImages.length > 0) {
+        setPastedImages(prev => [...prev, ...newImages])
+      }
+    } finally {
+      setIsLoadingImages(false)
+      resetInactivityTimer()
     }
   }
 
@@ -256,6 +311,17 @@ function App() {
         { path: filePath }
       )
 
+      // DETAILED LOGGING - FILE PICKER METHOD
+      console.log('[FILE PICKER] Image captured:', {
+        method: 'FILE_PICKER',
+        name: imageData.name,
+        mimeType: imageData.mime_type,
+        base64Length: imageData.data.length,
+        base64Sample: imageData.data.substring(0, 50) + '...',
+        hasDataPrefix: imageData.data.startsWith('data:'),
+        firstChars: imageData.data.substring(0, 20)
+      })
+
       setPastedImages(prev => [
         ...prev,
         {
@@ -273,40 +339,81 @@ function App() {
     }
   }
 
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
-    setIsDragging(true)
+    e.stopPropagation()
   }
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault()
-    setIsDragging(false)
+    e.stopPropagation()
+    // Only set isDragging to false if leaving the actual drop zone, not child elements
+    if (e.currentTarget === e.target) {
+      setIsDragging(false)
+    }
   }
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault()
+    e.stopPropagation()
     setIsDragging(false)
 
-    const files = Array.from(e.dataTransfer.files)
-    for (const file of files) {
-      if (!file.type.startsWith('image/')) continue
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'))
+    if (files.length === 0) return
 
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const base64 = event.target?.result as string
-        const base64Data = base64.split(',')[1]
-        setPastedImages(prev => [
-          ...prev,
-          {
+    setIsLoadingImages(true)
+    try {
+      const newImages: ImageAttachment[] = []
+
+      for (const file of files) {
+        // Validate file size
+        if (file.size > MAX_IMAGE_SIZE) {
+          console.error(`Image too large: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB). Max size: 10MB`)
+          alert(`Image "${file.name}" is too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 10MB.`)
+          continue
+        }
+
+        try {
+          const base64Data = await readFileAsBase64(file)
+          const imageData = {
             data: base64Data,
             mimeType: file.type,
             name: file.name,
-          },
-        ])
+          }
+
+          // DETAILED LOGGING - DROP METHOD
+          console.log('[DROP] Image captured:', {
+            method: 'DROP',
+            name: imageData.name,
+            mimeType: imageData.mimeType,
+            fileSize: file.size,
+            fileSizeMB: (file.size / 1024 / 1024).toFixed(2),
+            base64Length: base64Data.length,
+            base64Sample: base64Data.substring(0, 50) + '...',
+            hasDataPrefix: base64Data.startsWith('data:'),
+            firstChars: base64Data.substring(0, 20)
+          })
+
+          newImages.push(imageData)
+        } catch (error) {
+          console.error('Failed to read dropped image:', error)
+          alert(`Failed to read image: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        }
       }
-      reader.readAsDataURL(file)
+
+      if (newImages.length > 0) {
+        setPastedImages(prev => [...prev, ...newImages])
+      }
+    } finally {
+      setIsLoadingImages(false)
+      resetInactivityTimer()
     }
-    resetInactivityTimer()
   }
 
   // Handle command selection
@@ -428,7 +535,17 @@ function App() {
   }
 
   return (
-    <div className={cn("flex flex-col h-screen text-foreground overflow-hidden", isExpanded && "bg-background rounded-sm")}>
+    <div
+      className={cn(
+        "flex flex-col h-screen text-foreground overflow-hidden",
+        isExpanded && "bg-background rounded-sm",
+        isDragging && "ring-4 ring-primary ring-inset"
+      )}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <Navigation
         isOpen={showNavigation}
         onClose={() => {
@@ -666,19 +783,15 @@ function App() {
         <div
           className={cn(
             isExpanded ? "p-3" : "p-2",
-            "relative flex items-end gap-2",
-            isDragging && "ring-2 ring-primary ring-inset rounded-lg"
+            "relative flex items-end gap-2"
           )}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
         >
           {isExpanded && (
             <Button
               variant="ghost"
               size="icon"
               onClick={handleFilePicker}
-              disabled={!isAgentReady || isLoading || isPickingFile}
+              disabled={!isAgentReady || isLoading || isPickingFile || isLoadingImages}
               aria-label="Attach image"
               className="mb-1"
             >
@@ -691,8 +804,8 @@ function App() {
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            placeholder={isExpanded ? (isAgentReady ? "Type a message or paste an image..." : "Starting agent...") : "Assistant"}
-            disabled={!isAgentReady || isLoading}
+            placeholder={isExpanded ? (isLoadingImages ? "Loading images..." : isAgentReady ? "Type a message or paste an image..." : "Starting agent...") : "Assistant"}
+            disabled={!isAgentReady || isLoading || isLoadingImages}
             className={cn("min-h-[42px] max-h-[120px] resize-none rounded-full px-4 flex-1", isLoading && "pr-12")}
             rows={1}
             aria-label="Message input"

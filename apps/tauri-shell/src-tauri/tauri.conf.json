@@ -72,7 +72,8 @@
         "transparent": true,
         "alwaysOnTop": false,
         "center": true,
-        "skipTaskbar": true
+        "skipTaskbar": true,
+        "fileDropEnabled": false
       }
     ]
   }
