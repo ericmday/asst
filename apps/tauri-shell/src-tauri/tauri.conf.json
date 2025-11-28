@@ -15,25 +15,104 @@
       "all": false,
       "shell": {
         "all": true,
+        "execute": true,
+        "sidecar": true,
         "open": true
       },
       "dialog": {
-        "all": false,
-        "open": true
+        "all": true,
+        "ask": true,
+        "confirm": true,
+        "message": true,
+        "open": true,
+        "save": true
       },
       "fs": {
-        "all": false,
+        "all": true,
         "readFile": true,
-        "scope": ["$HOME/**"]
+        "writeFile": true,
+        "readDir": true,
+        "copyFile": true,
+        "createDir": true,
+        "removeDir": true,
+        "removeFile": true,
+        "renameFile": true,
+        "exists": true,
+        "scope": [
+          "$HOME/**",
+          "$APPDATA/**",
+          "$APPLOCALDATA/**",
+          "$APPCONFIG/**",
+          "$APPCACHE/**",
+          "$APPLOG/**",
+          "$RESOURCE/**",
+          "$TEMP/**",
+          "$DOWNLOAD/**",
+          "$DESKTOP/**",
+          "$DOCUMENT/**"
+        ]
+      },
+      "path": {
+        "all": true
+      },
+      "http": {
+        "all": true,
+        "request": true,
+        "scope": [
+          "http://**",
+          "https://**"
+        ]
+      },
+      "notification": {
+        "all": true
       },
       "globalShortcut": {
         "all": true
       },
+      "os": {
+        "all": true
+      },
+      "process": {
+        "all": true,
+        "relaunch": true,
+        "exit": true
+      },
+      "clipboard": {
+        "all": true,
+        "readText": true,
+        "writeText": true
+      },
       "window": {
-        "all": false,
+        "all": true,
+        "create": true,
+        "center": true,
+        "requestUserAttention": true,
+        "setResizable": true,
+        "setTitle": true,
+        "maximize": true,
+        "unmaximize": true,
+        "minimize": true,
+        "unminimize": true,
+        "show": true,
+        "hide": true,
+        "close": true,
+        "setDecorations": true,
+        "setAlwaysOnTop": true,
         "setSize": true,
+        "setMinSize": true,
+        "setMaxSize": true,
+        "setPosition": true,
+        "setFullscreen": true,
+        "setFocus": true,
+        "setIcon": true,
+        "setSkipTaskbar": true,
+        "setCursorGrab": true,
+        "setCursorVisible": true,
+        "setCursorIcon": true,
+        "setCursorPosition": true,
+        "setIgnoreCursorEvents": true,
         "startDragging": true,
-        "setAlwaysOnTop": true
+        "print": true
       }
     },
     "bundle": {
@@ -53,7 +132,7 @@
       }
     },
     "security": {
-      "csp": null
+      "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http: https:; connect-src 'self' http: https: ws: wss:; img-src 'self' data: blob: http: https:; media-src 'self' data: blob: http: https:; font-src 'self' data:; style-src 'self' 'unsafe-inline';"
     },
     "systemTray": {
       "iconPath": "icons/icon.png",
@@ -73,7 +152,7 @@
         "alwaysOnTop": false,
         "center": true,
         "skipTaskbar": true,
-        "fileDropEnabled": false
+        "fileDropEnabled": true
       }
     ]
   }

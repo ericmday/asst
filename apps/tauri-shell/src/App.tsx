@@ -517,9 +517,17 @@ function App() {
   }, [messages.length, clearHistory, isLoading, interruptQuery, resetInactivityTimer])
 
   const handleConversationSelect = (id: string) => {
+    // Clear messages immediately to avoid showing stale data
+    clearInProgressRef.current = true
     setCurrentConversationId(id)
-    // Messages will be loaded by Conversations component via loadMessages callback
+    // Clear the current messages to show a clean slate while loading
+    // The actual messages will be loaded by Conversations component via loadMessages callback
+    loadMessages([])
     resetInactivityTimer()
+    // Reset guard after React's state updates settle
+    setTimeout(() => {
+      clearInProgressRef.current = false
+    }, 100)
   }
 
   const handleNewConversation = () => {

@@ -1,6 +1,6 @@
 # Development Status
 
-**Last Updated:** November 27, 2025
+**Last Updated:** November 28, 2025
 **Current Phase:** UI Polish & Feature Enhancements
 **Progress:** 55% (3/8 SDK phases complete + UI complete + file access)
 
@@ -11,9 +11,37 @@
 ### 🔄 Current Task
 **Ready for next feature**
 
-All three image upload methods now fully working: paste (Cmd+V), file picker (paperclip), and drag-and-drop!
+Recent improvements: Maximized Tauri permissions and fixed conversation switching bug!
 
 ### ✅ Last Task Completed
+**Session 34 - Permissions & Conversation Switching Fix - Nov 28, 2025**
+
+**Task 1: Maximized Tauri Permissions**
+- Made Tauri shell as permissive as possible to eliminate permission-related issues
+- **Modified `apps/tauri-shell/src-tauri/Info.plist`:**
+  - Added full file system access (read/write user-selected files, Downloads folder)
+  - Added camera and microphone entitlements for future vision/voice features
+  - Added AppleScript/automation support for system integration
+  - Added network permissions (incoming/outgoing)
+- **Modified `apps/tauri-shell/src-tauri/tauri.conf.json`:**
+  - Enabled all fs APIs (create, delete, copy, rename)
+  - Added all window manipulation capabilities
+  - Set permissive CSP for development
+  - Re-enabled file drop (was disabled in Session 33, now properly configured)
+- **Created `PERMISSIONS_UPDATE.md`:** Comprehensive documentation of all permissions
+- **Impact:** Eliminates permission-related errors during development
+
+**Task 2: Fixed Conversation Switching Bug**
+- **Problem:** When clicking on a historical conversation or creating a new one, the chat window didn't clear - stale messages from the previous conversation remained visible
+- **Root Cause:** The `handleConversationSelect` function wasn't clearing the message state before loading new messages
+- **Modified `apps/tauri-shell/src/App.tsx` (lines 519-531):**
+  - Added `loadMessages([])` to immediately clear messages when switching conversations
+  - Added `clearInProgressRef.current` guards to prevent auto-compact timer interference
+- **Impact:** Clean UX - chat window now clears immediately when switching conversations
+
+**Status:** ✅ COMPLETE - Both fixes working perfectly
+
+### ✅ Previous Task Completed
 **Fixed Drag-and-Drop Image Upload - Session 33**
 
 **Problem:** Drag-and-drop image upload wasn't working at all. Users could paste images (Cmd+V) and use the file picker (paperclip button), but dragging images from Finder onto the window did nothing.
@@ -304,6 +332,31 @@ Potential next tasks to consider:
 ---
 
 ## 📝 Recent Changes
+
+### Session 34 (Nov 28, 2025)
+- **Maximized Tauri Permissions & Fixed Conversation Switching** (COMPLETE)
+- **Task 1: Maximized Tauri Permissions**
+  - Made Tauri shell as permissive as possible to eliminate permission-related issues
+  - **Modified `apps/tauri-shell/src-tauri/Info.plist`:**
+    - Added full file system access (read/write user-selected files, Downloads folder)
+    - Added camera and microphone entitlements for future vision/voice features
+    - Added AppleScript/automation support for system integration
+    - Added network permissions (incoming/outgoing)
+  - **Modified `apps/tauri-shell/src-tauri/tauri.conf.json`:**
+    - Enabled all fs APIs (create, delete, copy, rename)
+    - Added all window manipulation capabilities
+    - Set permissive CSP for development
+    - Re-enabled file drop (was disabled in Session 33, now properly configured)
+  - **Created `PERMISSIONS_UPDATE.md`:** Comprehensive documentation of all permissions
+  - **Impact:** Eliminates permission-related errors during development
+- **Task 2: Fixed Conversation Switching Bug**
+  - **Problem:** When clicking on a historical conversation or creating a new one, the chat window didn't clear - stale messages from the previous conversation remained visible
+  - **Root Cause:** The `handleConversationSelect` function wasn't clearing the message state before loading new messages
+  - **Modified `apps/tauri-shell/src/App.tsx` (lines 519-531):**
+    - Added `loadMessages([])` to immediately clear messages when switching conversations
+    - Added `clearInProgressRef.current` guards to prevent auto-compact timer interference
+  - **Impact:** Clean UX - chat window now clears immediately when switching conversations
+- **Result:** Both improvements working perfectly
 
 ### Session 33 (Nov 27, 2025)
 - **Fixed Drag-and-Drop Image Upload** (COMPLETE)
