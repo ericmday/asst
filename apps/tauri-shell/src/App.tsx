@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { X, Trash2, Menu, Pin, StopCircle, Paperclip } from 'lucide-react'
+import { X, Trash2, Menu, Pin, StopCircle, Paperclip, Loader2 } from 'lucide-react'
 import { appWindow, LogicalSize } from '@tauri-apps/api/window'
 import { invoke } from '@tauri-apps/api/tauri'
 import { useAgent } from './useAgent'
@@ -477,7 +477,15 @@ function App() {
     // Auto-resize textarea
     const textarea = e.target
     textarea.style.height = 'auto'
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`
+    const newHeight = Math.min(textarea.scrollHeight, 120)
+    textarea.style.height = `${newHeight}px`
+
+    // Adjust window height in compact mode to accommodate multi-line text
+    if (!isExpanded) {
+      // Add padding for the input container (p-2 = 8px * 2 = 16px)
+      const windowHeight = Math.max(COMPACT_HEIGHT, newHeight + 20)
+      appWindow.setSize(new LogicalSize(WINDOW_WIDTH, windowHeight))
+    }
 
     // Reset inactivity timer on user interaction
     resetInactivityTimer()
@@ -491,11 +499,16 @@ function App() {
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Escape to interrupt query when loading
-      if (e.key === 'Escape' && isLoading) {
+      // Escape to interrupt query when loading, or close window if not loading
+      if (e.key === 'Escape') {
         e.preventDefault()
-        interruptQuery()
-        resetInactivityTimer()
+        if (isLoading) {
+          interruptQuery()
+          resetInactivityTimer()
+        } else {
+          // Close/hide the window
+          appWindow.hide()
+        }
         return
       }
 
@@ -670,53 +683,78 @@ function App() {
                   msg.role === 'assistant' && "justify-start"
                 )}
               >
-                <Card
-                  className={cn(
-                    "max-w-[85%] p-3 text-sm",
-                    msg.role === 'user' && "bg-primary text-primary-foreground",
-                    msg.role === 'assistant' && "bg-card"
-                  )}
-                  role="article"
-                  aria-label={`${msg.role === 'user' ? 'Your' : 'Assistant'} message`}
-                >
-                  {msg.error ? (
-                    <div className="flex items-start gap-2 p-2 bg-destructive/10 text-destructive rounded border-l-4 border-destructive">
-                      <strong className="font-semibold">Error:</strong>
-                      <span>{msg.error}</span>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="break-words">
-                        {msg.role === 'assistant' ? (
-                          <>
-                            <Markdown content={msg.content} />
-                            {msg.isStreaming && <span className="animate-blink ml-0.5" aria-label="Streaming">▊</span>}
-                          </>
-                        ) : (
-                          <div className="whitespace-pre-wrap">{msg.content}</div>
-                        )}
+                {msg.role === 'assistant' ? (
+                  // Assistant messages: No card wrapper, just content
+                  <div
+                    className="max-w-[85%] text-sm"
+                    role="article"
+                    aria-label="Assistant message"
+                  >
+                    {msg.error ? (
+                      <div className="flex items-start gap-2 p-2 bg-destructive/10 text-destructive rounded border-l-4 border-destructive">
+                        <strong className="font-semibold">Error:</strong>
+                        <span>{msg.error}</span>
                       </div>
-                      {/* Show images if present */}
-                      {msg.images && msg.images.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {msg.images.map((img, idx) => (
-                            <img
-                              key={idx}
-                              src={`data:${img.mimeType};base64,${img.data}`}
-                              alt={img.name || `Image ${idx + 1}`}
-                              className="max-w-full rounded border"
-                              title={img.name || `Image ${idx + 1}`}
-                            />
-                          ))}
+                    ) : (
+                      <>
+                        <div className="break-words">
+                          <Markdown content={msg.content} />
+                          {msg.isStreaming && <span className="animate-blink ml-0.5" aria-label="Streaming">▊</span>}
                         </div>
-                      )}
-                      {/* Show tool calls for this message */}
-                      {toolCalls.filter(tc => tc.id.includes(msg.id)).map(tc => (
-                        <ToolResult key={tc.id} toolCall={tc} />
-                      ))}
-                    </>
-                  )}
-                </Card>
+                        {/* Show images if present */}
+                        {msg.images && msg.images.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {msg.images.map((img, idx) => (
+                              <img
+                                key={idx}
+                                src={`data:${img.mimeType};base64,${img.data}`}
+                                alt={img.name || `Image ${idx + 1}`}
+                                className="max-w-full rounded border"
+                                title={img.name || `Image ${idx + 1}`}
+                              />
+                            ))}
+                          </div>
+                        )}
+                        {/* Show tool calls for this message */}
+                        {toolCalls.filter(tc => tc.id.includes(msg.id)).map(tc => (
+                          <ToolResult key={tc.id} toolCall={tc} />
+                        ))}
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  // User messages: Keep the card bubble
+                  <Card
+                    className="max-w-[85%] p-3 text-sm bg-primary text-primary-foreground"
+                    role="article"
+                    aria-label="Your message"
+                  >
+                    {msg.error ? (
+                      <div className="flex items-start gap-2 p-2 bg-destructive/10 text-destructive rounded border-l-4 border-destructive">
+                        <strong className="font-semibold">Error:</strong>
+                        <span>{msg.error}</span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="break-words whitespace-pre-wrap">{msg.content}</div>
+                        {/* Show images if present */}
+                        {msg.images && msg.images.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {msg.images.map((img, idx) => (
+                              <img
+                                key={idx}
+                                src={`data:${img.mimeType};base64,${img.data}`}
+                                alt={img.name || `Image ${idx + 1}`}
+                                className="max-w-full rounded border"
+                                title={img.name || `Image ${idx + 1}`}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </Card>
+                )}
               </div>
             ))}
             {/* Show "Thinking..." indicator when loading and no assistant response yet */}
@@ -738,9 +776,9 @@ function App() {
       </ScrollArea>
 
       <div className="relative flex flex-col">
-        {pastedImages.length > 0 && (
+        {(pastedImages.length > 0 || isLoadingImages) && (
           <Card className="m-2 py-2">
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-wrap items-center">
               {pastedImages.map((img, index) => (
                 <div key={index} className="relative group">
                   <img
@@ -751,7 +789,7 @@ function App() {
                   <Button
                     variant="destructive"
                     size="icon"
-                    className="absolute -top-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute -top-2 -right-2 h-6 w-6 opacity-100 transition-opacity"
                     onClick={() => removeImage(index)}
                     aria-label="Remove image"
                   >
@@ -759,6 +797,11 @@ function App() {
                   </Button>
                 </div>
               ))}
+              {isLoadingImages && (
+                <div className="flex items-center justify-center w-20 h-20 border rounded bg-muted">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              )}
             </div>
           </Card>
         )}
@@ -791,21 +834,19 @@ function App() {
         <div
           className={cn(
             isExpanded ? "p-3" : "p-2",
-            "relative flex items-end gap-2"
+            "relative flex items-center gap-2"
           )}
         >
-          {isExpanded && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleFilePicker}
-              disabled={!isAgentReady || isLoading || isPickingFile || isLoadingImages}
-              aria-label="Attach image"
-              className="mb-1"
-            >
-              <Paperclip size={20} />
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleFilePicker}
+            disabled={!isAgentReady || isLoading || isPickingFile || isLoadingImages}
+            aria-label="Attach image"
+            className="absolute left-5 top-1/2 -translate-y-1/2 h-8 w-8 z-10 hover:bg-transparent active:bg-transparent"
+          >
+            <Paperclip size={16} />
+          </Button>
           <Textarea
             ref={textareaRef}
             value={inputValue}
@@ -814,7 +855,12 @@ function App() {
             onPaste={handlePaste}
             placeholder={isExpanded ? (isLoadingImages ? "Loading images..." : isAgentReady ? "Type a message or paste an image..." : "Starting agent...") : "Assistant"}
             disabled={!isAgentReady || isLoading || isLoadingImages}
-            className={cn("min-h-[42px] max-h-[120px] resize-none rounded-full px-4 flex-1", isLoading && "pr-12")}
+            className={cn(
+              "min-h-[42px] max-h-[120px] resize-none overflow-y-auto",
+              "rounded-[21px] px-4 flex-1",
+              isLoading && "pr-12",
+              "pl-10"  // Add padding for the paperclip icon
+            )}
             rows={1}
             aria-label="Message input"
           />

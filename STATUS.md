@@ -1,6 +1,6 @@
 # Development Status
 
-**Last Updated:** November 28, 2025
+**Last Updated:** November 27, 2025
 **Current Phase:** UI Polish & Feature Enhancements
 **Progress:** 55% (3/8 SDK phases complete + UI complete + file access)
 
@@ -11,9 +11,58 @@
 ### 🔄 Current Task
 **Ready for next feature**
 
-Recent improvements: Maximized Tauri permissions and fixed conversation switching bug!
+Recent improvements: Major UI/UX enhancements to input field and chat display!
 
 ### ✅ Last Task Completed
+**Session 35 - UI/UX Enhancements - Nov 27, 2025**
+
+**Implemented 8 UI improvements to input field and chat display:**
+
+1. **Multi-line Text Overflow Fix**
+   - Changed textarea from `rounded-full` to `rounded-[21px]` for better multi-line appearance
+   - Added `overflow-y-auto` to enable scrolling for long text
+
+2. **File Picker Icon Repositioned**
+   - Moved paperclip icon inside input field (was outside, only visible when expanded)
+   - Now visible in all modes, positioned absolutely inside textarea with `pl-10` padding
+   - Vertically centered with `top-1/2 -translate-y-1/2`
+   - Reduced hover effects with `hover:bg-transparent active:bg-transparent`
+
+3. **Removed Chat Bubbles from AI Responses**
+   - Assistant messages no longer have Card wrapper/background
+   - Only user messages keep the bubble style (primary background)
+   - Cleaner, more modern chat interface similar to ChatGPT
+
+4. **Image Upload Loading Indicator**
+   - Added circular `Loader2` spinner when loading images
+   - Shows in image preview area during async file reading
+   - Remove buttons now always visible (changed from `opacity-0 group-hover:opacity-100` to `opacity-100`)
+
+5. **ESC Key Dual Purpose**
+   - When loading: Interrupts query (existing behavior)
+   - When idle: Closes/hides the window with `appWindow.hide()`
+   - Provides quick way to dismiss window without mouse
+
+6. **Dynamic Compact View Height**
+   - Window now adjusts height in compact mode based on textarea content
+   - Ranges from 60px (minimum) to 140px (maximum with multi-line text)
+   - Formula: `Math.max(COMPACT_HEIGHT, newHeight + 20)` for padding
+   - Smooth resize as user types multi-line text
+
+7. **Paperclip Icon Vertical Centering**
+   - Changed parent container from `items-end` to `items-center`
+   - Icon now properly aligned with single-line and multi-line text
+
+8. **Paperclip Button Hover Effect Removed**
+   - Added `hover:bg-transparent active:bg-transparent` classes
+   - Icon remains subtle and non-distracting
+
+**Files Modified:**
+- `apps/tauri-shell/src/App.tsx` - All 8 improvements (lines 1, 477-487, 491-512, 670-758, 776-865)
+
+**Status:** ✅ COMPLETE - All UI improvements implemented and tested
+
+### ✅ Previous Task Completed
 **Session 34 - Permissions & Conversation Switching Fix - Nov 28, 2025**
 
 **Task 1: Maximized Tauri Permissions**
@@ -332,6 +381,29 @@ Potential next tasks to consider:
 ---
 
 ## 📝 Recent Changes
+
+### Session 35 (Nov 27, 2025)
+- **UI/UX Enhancements to Input Field and Chat Display** (COMPLETE)
+- **Summary:** Eight improvements focused on better text handling, cleaner chat bubbles, and improved user experience
+- **Changes:**
+  1. **Multi-line text overflow fix** - Changed from `rounded-full` to `rounded-[21px]` with `overflow-y-auto`
+  2. **File picker icon repositioned** - Moved inside input field, always visible, absolutely positioned
+  3. **Removed chat bubbles from AI responses** - Only user messages keep bubble style for cleaner interface
+  4. **Image upload loading indicator** - Added `Loader2` spinner, always-visible remove buttons
+  5. **ESC key dual purpose** - Interrupt when loading, close window when idle
+  6. **Dynamic compact view height** - Window adjusts 60-140px based on multi-line text content
+  7. **Paperclip icon vertical centering** - Changed parent to `items-center` for proper alignment
+  8. **Removed paperclip hover effect** - Added `hover:bg-transparent` for subtle appearance
+- **Modified `apps/tauri-shell/src/App.tsx`:**
+  - Imported `Loader2` icon from lucide-react
+  - Enhanced `handleInputChange()` to dynamically resize window in compact mode
+  - Updated ESC key handler for dual purpose (interrupt/close)
+  - Refactored message rendering to remove Card wrapper from assistant messages
+  - Repositioned paperclip button inside textarea with absolute positioning
+  - Added loading spinner to image preview area
+  - Made remove buttons always visible instead of hover-only
+- **Impact:** Much cleaner, more polished UI with better multi-line text handling and modern chat appearance
+- **Result:** All 8 improvements working perfectly
 
 ### Session 34 (Nov 28, 2025)
 - **Maximized Tauri Permissions & Fixed Conversation Switching** (COMPLETE)
