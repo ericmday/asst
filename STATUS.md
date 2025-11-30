@@ -1,358 +1,51 @@
 # Development Status
 
-**Last Updated:** November 27, 2025
-**Current Phase:** UI Polish & Feature Enhancements
-**Progress:** 55% (3/8 SDK phases complete + UI complete + file access)
+**Last Updated:** November 29, 2025
+**Current Phase:** Documentation & Architecture Planning
+**Progress:** 55% (Core features complete, SDK integration in progress, docs 43% updated)
 
 ---
 
 ## 🎯 Current Focus
 
 ### 🔄 Current Task
-**Ready for next feature**
-
-Recent improvements: Major UI/UX enhancements to input field and chat display!
-
-### ✅ Last Task Completed
-**Session 35 - UI/UX Enhancements - Nov 27, 2025**
-
-**Implemented 8 UI improvements to input field and chat display:**
-
-1. **Multi-line Text Overflow Fix**
-   - Changed textarea from `rounded-full` to `rounded-[21px]` for better multi-line appearance
-   - Added `overflow-y-auto` to enable scrolling for long text
-
-2. **File Picker Icon Repositioned**
-   - Moved paperclip icon inside input field (was outside, only visible when expanded)
-   - Now visible in all modes, positioned absolutely inside textarea with `pl-10` padding
-   - Vertically centered with `top-1/2 -translate-y-1/2`
-   - Reduced hover effects with `hover:bg-transparent active:bg-transparent`
-
-3. **Removed Chat Bubbles from AI Responses**
-   - Assistant messages no longer have Card wrapper/background
-   - Only user messages keep the bubble style (primary background)
-   - Cleaner, more modern chat interface similar to ChatGPT
-
-4. **Image Upload Loading Indicator**
-   - Added circular `Loader2` spinner when loading images
-   - Shows in image preview area during async file reading
-   - Remove buttons now always visible (changed from `opacity-0 group-hover:opacity-100` to `opacity-100`)
-
-5. **ESC Key Dual Purpose**
-   - When loading: Interrupts query (existing behavior)
-   - When idle: Closes/hides the window with `appWindow.hide()`
-   - Provides quick way to dismiss window without mouse
-
-6. **Dynamic Compact View Height**
-   - Window now adjusts height in compact mode based on textarea content
-   - Ranges from 60px (minimum) to 140px (maximum with multi-line text)
-   - Formula: `Math.max(COMPACT_HEIGHT, newHeight + 20)` for padding
-   - Smooth resize as user types multi-line text
-
-7. **Paperclip Icon Vertical Centering**
-   - Changed parent container from `items-end` to `items-center`
-   - Icon now properly aligned with single-line and multi-line text
-
-8. **Paperclip Button Hover Effect Removed**
-   - Added `hover:bg-transparent active:bg-transparent` classes
-   - Icon remains subtle and non-distracting
-
-**Files Modified:**
-- `apps/tauri-shell/src/App.tsx` - All 8 improvements (lines 1, 477-487, 491-512, 670-758, 776-865)
-
-**Status:** ✅ COMPLETE - All UI improvements implemented and tested
-
-### ✅ Previous Task Completed
-**Session 34 - Permissions & Conversation Switching Fix - Nov 28, 2025**
-
-**Task 1: Maximized Tauri Permissions**
-- Made Tauri shell as permissive as possible to eliminate permission-related issues
-- **Modified `apps/tauri-shell/src-tauri/Info.plist`:**
-  - Added full file system access (read/write user-selected files, Downloads folder)
-  - Added camera and microphone entitlements for future vision/voice features
-  - Added AppleScript/automation support for system integration
-  - Added network permissions (incoming/outgoing)
-- **Modified `apps/tauri-shell/src-tauri/tauri.conf.json`:**
-  - Enabled all fs APIs (create, delete, copy, rename)
-  - Added all window manipulation capabilities
-  - Set permissive CSP for development
-  - Re-enabled file drop (was disabled in Session 33, now properly configured)
-- **Created `PERMISSIONS_UPDATE.md`:** Comprehensive documentation of all permissions
-- **Impact:** Eliminates permission-related errors during development
-
-**Task 2: Fixed Conversation Switching Bug**
-- **Problem:** When clicking on a historical conversation or creating a new one, the chat window didn't clear - stale messages from the previous conversation remained visible
-- **Root Cause:** The `handleConversationSelect` function wasn't clearing the message state before loading new messages
-- **Modified `apps/tauri-shell/src/App.tsx` (lines 519-531):**
-  - Added `loadMessages([])` to immediately clear messages when switching conversations
-  - Added `clearInProgressRef.current` guards to prevent auto-compact timer interference
-- **Impact:** Clean UX - chat window now clears immediately when switching conversations
-
-**Status:** ✅ COMPLETE - Both fixes working perfectly
-
-### ✅ Previous Task Completed
-**Fixed Drag-and-Drop Image Upload - Session 33**
-
-**Problem:** Drag-and-drop image upload wasn't working at all. Users could paste images (Cmd+V) and use the file picker (paperclip button), but dragging images from Finder onto the window did nothing.
-
-**Root Cause:** Tauri's native `fileDrop` API was enabled by default, which **blocks HTML5 drag events** from reaching the React app. The native handler expects special Tauri event listeners, but the app was using standard HTML5 drag/drop handlers.
-
-**Solution Implemented:**
-- ✅ Disabled Tauri's native file drop handler with `fileDropEnabled: false` in `tauri.conf.json`
-- ✅ Enhanced React drag handlers with proper event handling:
-  - Added `onDragEnter` to detect when dragging starts over window
-  - Added `stopPropagation()` to prevent event bubbling issues
-  - Added `currentTarget` checks to avoid false `onDragLeave` triggers on child elements
-- ✅ Moved drop zone to entire window root instead of just input area for better UX
-- ✅ Added visual feedback with `ring-4 ring-primary` border when dragging over window
-- ✅ All three image input methods now work consistently: paste, file picker, drag-and-drop
-
-**Files Modified:**
-- `apps/tauri-shell/src-tauri/tauri.conf.json` - Added `fileDropEnabled: false` to window config
-- `apps/tauri-shell/src/App.tsx` - Enhanced drag handlers, moved to root div, improved visual feedback
-
-**Status:** ✅ COMPLETE - All three image input methods working perfectly
-
-### ✅ Previous Task Completed
-**Fixed Image Upload AsyncIterable Bug - Session 32**
-
-**Problem:** Images were crashing the agent runtime with EPIPE broken pipe errors. Text-only messages worked fine, but any image upload would kill the Node.js process.
-
-**Root Cause:** In `apps/agent-runtime/src/sdk-adapter.ts:265`, the code was accessing `.length` on `promptToSend`:
-```typescript
-console.log('[SDK-ADAPTER] Prompt length:', promptToSend.length);
-```
-
-When images are present, `promptToSend` becomes an **AsyncIterable** (async generator), which doesn't have a `.length` property. This caused Node.js to crash immediately, triggering EPIPE when trying to write to stdout after the process died.
-
-**Solution Implemented:**
-- ✅ Added type guard to check if prompt is string vs AsyncIterable
-- ✅ Safe logging for both cases (string shows length, AsyncIterable shows type)
-- ✅ Added comprehensive debug logging throughout the SDK adapter
-- ✅ All three image input methods now work: paste, drag-drop, file picker
-
-**Files Modified:**
-- `apps/agent-runtime/src/sdk-adapter.ts` - Fixed prompt length logging (lines 265-271)
-- Added detailed logging in `handleAssistantMessage()`, `emitTextChunked()`, and `sendResponse()`
-
-**Earlier Task:**
-**Frontend Image Loading Async Fixes - Session 31**
-
-**Problem:** Copy/paste and drag/drop image handling was crashing or freezing the frontend. The FileReader API was being used synchronously, causing race conditions and blocking behavior.
-
-**Solution Implemented - Async/Await Image Processing:**
-
-**1. Created Promise-based FileReader Helper (`apps/tauri-shell/src/App.tsx:43-57`)**
-- ✅ New `readFileAsBase64()` function wraps FileReader in a Promise
-- ✅ Proper error handling with rejection on FileReader errors
-- ✅ Returns clean base64 data (strips data URL prefix)
-- ✅ Reusable for both paste and drop handlers
-
-**2. Made handlePaste Async (`apps/tauri-shell/src/App.tsx:233-281`)**
-- ✅ Changed to async function with await for FileReader
-- ✅ Added `isLoadingImages` state to prevent send during processing
-- ✅ Collect all image files first, then process with proper error handling
-- ✅ Added 10MB size validation per image with user alerts
-- ✅ Individual try/catch per image to handle partial failures
-- ✅ Reset loading state in finally block
-
-**3. Made handleDrop Async (`apps/tauri-shell/src/App.tsx:326-365`)**
-- ✅ Same async/await pattern as handlePaste
-- ✅ Filter for image files from drag data
-- ✅ Size validation and error handling
-- ✅ Loading state management
-
-**4. Disabled Send Button During Image Loading (`apps/tauri-shell/src/App.tsx:213, 736, 750`)**
-- ✅ Added `isLoadingImages` to send button condition
-- ✅ Disabled paperclip button when loading images
-- ✅ Updated textarea placeholder to show "Loading images..."
-- ✅ Prevents sending incomplete data
-
-**Files Modified:**
-- `apps/tauri-shell/src/App.tsx` - Added async image handling with error recovery
-
-**Status:** ✅ Frontend fixes COMPLETE - Images load without crashing
-**HOWEVER:** Backend now hangs when processing the images (see Current Task)
-
-**Previous Task:**
-**Clipboard and File Permission Feature - Session 30**
-
-**Problem:** Users couldn't provide file paths to images in the assistant. When file paths were provided, the assistant would ask for permission and fail to read them due to macOS sandbox restrictions.
-
-**Solution Implemented - Hybrid Approach Using Tauri as Privileged Intermediary:**
-
-**1. macOS Entitlements (NEW FILE: `apps/tauri-shell/src-tauri/Info.plist`)**
-- ✅ Created entitlements file with `com.apple.security.files.user-selected.read-only`
-- ✅ Added network access entitlement for API calls
-- ✅ Referenced in `tauri.conf.json` under `bundle.macOS.entitlements`
-
-**2. Rust Backend Commands (`apps/tauri-shell/src-tauri/src/main.rs`)**
-- ✅ Added `open_image_picker()` command using NSOpenPanel for user file selection
-- ✅ Added `read_image_as_base64()` command for privileged file reading
-- ✅ Image validation for supported formats (png, jpg, jpeg, gif, webp)
-- ✅ Base64 encoding in Rust layer
-- ✅ Added base64 dependency to `Cargo.toml`
-- ✅ Returns structured ImageData with data, mime_type, and name
-
-**3. Frontend UI Enhancements (`apps/tauri-shell/src/App.tsx`)**
-- ✅ **File Picker Button**: Paperclip icon button (📎) in input area when expanded
-- ✅ **Drag-and-Drop**: Drop zone with visual feedback (ring highlight when dragging)
-- ✅ **Clipboard Paste**: Existing Cmd+V functionality (already working)
-- ✅ State management: isPickingFile, isDragging
-- ✅ Error handling and user feedback
-- ✅ Activity timer reset on all three input methods
-
-**How It Works:**
-1. User-selected files bypass sandbox via macOS entitlements
-2. Tauri Rust layer handles file selection (NSOpenPanel) and reading
-3. Images converted to base64 in Rust, passed to agent runtime
-4. Three convenient input methods: paste, file picker button, drag-and-drop from Finder
-
-**Files Modified:**
-- **NEW:** `apps/tauri-shell/src-tauri/Info.plist` - macOS entitlements
-- `apps/tauri-shell/src-tauri/tauri.conf.json` - entitlements reference
-- `apps/tauri-shell/src-tauri/Cargo.toml` - base64 dependency
-- `apps/tauri-shell/src-tauri/src/main.rs` - file picker and read commands
-- `apps/tauri-shell/src/App.tsx` - UI for file picker, drag-and-drop
-
-**Status:** ✅ COMPLETE - Implementation finished, app restarted, ready for testing
-
-**Previous Task:**
-**Critical EPIPE Root Cause Fix - Session 29**
-
-**Problem:** EPIPE errors occurring when Node.js agent tried to send responses back through stdout, especially with large payloads like image vision responses.
-
-**Root Cause Identified:**
-The Rust stdout reader task was using `while let Ok(Some(line))` pattern which **silently exits the loop on ANY error**, causing:
-1. Large JSON responses trigger read errors in `BufReader::read_line()`
-2. Loop exits without logging why
-3. Stdout reader task terminates
-4. Subsequent writes from Node.js get EPIPE because nobody is reading anymore
-
-**The Fix:**
-- ✅ **Replaced silent error pattern in stdout reader** (`apps/tauri-shell/src-tauri/src/agent_ipc.rs:69-116`)
-  - Changed from `while let Ok(Some(line))` to explicit `match` with error handling
-  - Added logging for EOF and read errors
-  - Continue reading on errors instead of exiting (handle transient errors)
-  - Only exit on true EOF (Ok(None))
-  - Added exit logging for debugging
-- ✅ **Applied same fix to stderr reader** (`apps/tauri-shell/src-tauri/src/agent_ipc.rs:124-159`)
-  - Consistent error handling across both pipes
-  - Proper EOF detection
-  - Continue on transient errors
-
-**Previous Partial Fixes (Session 28):**
-- Fixed readline stdout conflict in Node.js
-- Fixed missing sendResponse() method calls
-- Added EPIPE error handlers in Node.js
-These were helpful but didn't address the root cause in Rust
-
-**Status:** ✅ Fix implemented and being tested with large payloads
-
-**Previous Task:**
-**Interrupt Query Feature - COMPLETE**
-
-**Implemented:**
-- ✅ Backend interrupt infrastructure
-  - Added `interrupt()` method to SDK adapter (sdk-adapter.ts:69)
-  - Added 'interrupt' IPC request kind support (index.ts)
-  - Created `send_interrupt()` Tauri command (main.rs)
-- ✅ Frontend UI controls
-  - Imported StopCircle icon from lucide-react
-  - Added stop button in input area (visible when isLoading)
-  - Positioned button absolutely on right side of textarea
-  - Added Escape key handler for global interrupt
-- ✅ User experience features
-  - Button shows tooltip "Stop (Esc)"
-  - Red destructive styling for clear action
-  - Two ways to interrupt: click button or press Escape
-  - Gracefully stops Claude mid-execution via SDK's interrupt()
-
-**Status:** ✅ COMPLETE - Users can now interrupt long-running queries
-
-**Previous Task:**
-**Pin Button for Always-On-Top Window - COMPLETE**
-- ✅ Added Pin icon import from lucide-react
-- ✅ Added isPinned state tracking
-- ✅ Implemented pin button in header (App.tsx:385-402)
-- ✅ Button uses `appWindow.setAlwaysOnTop()` API
-- ✅ Visual feedback: fills icon and changes color when pinned
-
-**Earlier Sessions:**
-- Session 23: macOS transparency implementation
-- Session 22: Conversation loading bug fix (partial)
-- Session 21: Integrated shadcn/ui components with Tailwind CSS
-- Session 20: Draggable header with data-tauri-drag-region
-- Session 19: Compact window mode (90px → 600px) with 5-minute timeout
-
-### ⏭️ Next Task
-**Ready for Next Feature or Enhancement**
-
-The image upload feature is now complete with all three input methods working:
-- ✅ Paste (Cmd+V)
-- ✅ File picker (paperclip button)
-- ✅ Drag-and-drop from Finder
-
-Potential next tasks to consider:
-- [ ] Add visual timer countdown indicator for auto-compact
-- [ ] Window position memory (remember last position)
-- [ ] Real-time conversation title updates in sidebar
-- [ ] Search/filter conversations
-- [ ] SDK Migration Phase 4+ (hooks, permissions, advanced features)
-- [ ] Additional tool implementations (clipboard, vision, etc.)
-
----
-
-**Other Pending Tasks:**
-- [ ] Add visual timer countdown indicator
-- [ ] Window position memory
-- [ ] Real-time conversation title updates in sidebar
-- [ ] Search/filter conversations
-- [ ] SDK Migration Phase 4+ (hooks, permissions, advanced features)
-
----
-
-## 🗂️ File Index
-
-- **[claude.md](./claude.md)** - Project overview & navigation
-- **[STATUS.md](./STATUS.md)** - This file
-- **[docs/01-project-setup.md](./docs/01-project-setup.md)** - Monorepo initialization
-- **[docs/02-tauri-shell.md](./docs/02-tauri-shell.md)** - Rust implementation
-- **[docs/03-agent-runtime.md](./docs/03-agent-runtime.md)** - Node agent process
-- **[docs/04-tool-layer.md](./docs/04-tool-layer.md)** - Tool implementations
-- **[docs/05-web-ui.md](./docs/05-web-ui.md)** - React components
-- **[docs/06-ipc-protocol.md](./docs/06-ipc-protocol.md)** - IPC specification
-- **[docs/07-security-config.md](./docs/07-security-config.md)** - Security model
-
----
-
-## 💡 Notes for Next Session
-
-### Context to Remember
-- Core Tauri shell and React UI are implemented and functional
-- Agent runtime using Claude SDK is working with streaming responses
-- Focus on minimal footprint and fast startup
-- Security is critical: sandbox everything
-- UI should feel like ChatGPT desktop but with richer tools
-
-### Key Principles
-1. **Fast launch** - No heavy initialization
-2. **Minimal RAM** - Long-lived but lightweight
-3. **Secure by default** - Whitelist everything
-4. **Easy extensibility** - Simple to add tools
-
-### Where We Left Off
-- ✅ Phase 4 Complete - UI Polish fully complete!
-- ✅ Phase 6-9 Roadmap defined with clear priorities
-- ✅ Strategic pivot: Focus on prototype features over production packaging
-- 🚧 Phase 6 In Progress - Essential Extensions
-- 📋 Implementing: Clipboard, Vision, Persistence, Custom Tools
-- Next Steps:
-  1. Install clipboardy and create clipboard tools
-  2. Create vision tools for screenshots and image analysis
-  3. Set up SQLite persistence layer
-  4. Build custom tool script loader
-  5. Test all new features end-to-end
+**Documentation Update in Progress** (3/7 docs complete)
+- Remaining: 04-tool-layer, 08-sdk-implementation, 09-persistence, 10-memory
+
+### ✅ Last Completed (Session 36 - Nov 29)
+**Documentation Refresh - Claude Agent SDK Best Practices:**
+1. Rewrote `docs/03-agent-runtime.md` - SDK adapter patterns, MCP integration, image handling, future hooks/memory architecture
+2. Rewrote `docs/05-web-ui.md` - All UI features (image upload 3 methods, compact mode, shadcn/ui, keyboard shortcuts)
+3. Updated `docs/02-tauri-shell.md` - All 11 commands, macOS entitlements, transparency, EPIPE fixes
+4. Created `docs/DOCS_COMPARISON.md` - Gap analysis vs actual implementation
+
+**Previous Session (Session 35 - Nov 27):**
+**UI/UX Polish - 8 improvements:**
+1. Multi-line text overflow fix (rounded corners, scrolling)
+2. Paperclip icon repositioned inside input field
+3. Removed chat bubbles from AI responses (ChatGPT-like UI)
+4. Image loading indicator (Loader2 spinner)
+5. ESC key dual purpose (interrupt when loading, close when idle)
+6. Dynamic compact height (60-140px based on content)
+7. Paperclip vertical centering
+8. Removed paperclip hover effects
+
+**Files:** `apps/tauri-shell/src/App.tsx`
+
+### ⏭️ Next Task Options
+
+**Documentation (Remaining):**
+- [ ] Update docs/04-tool-layer.md with SDK tool format
+- [ ] Rename docs/08-sdk-migration-plan.md → 08-sdk-implementation.md
+- [ ] Create docs/09-conversation-persistence.md
+- [ ] Create docs/10-memory-architecture.md
+
+**Features (Ready to Build):**
+- [ ] SDK hooks (PostToolUse, SessionEnd) - Unlocks memory system
+- [ ] Terminal sidebar (fully specified in docs/08-terminal-sidebar.md)
+- [ ] File opening from chat (macOS open command)
+- [ ] Voice input (Groq Whisper) - Well documented
+- [ ] System prompts UI
 
 ---
 
@@ -360,223 +53,60 @@ Potential next tasks to consider:
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Tauri Shell | ✅ Complete | Window management, tray icon, hotkeys |
-| React UI | ✅ Complete | Chat interface, conversations, markdown |
-| Agent Runtime | ✅ Complete | Claude SDK integration, streaming |
-| IPC Protocol | ✅ Complete | Stdio JSON communication |
-| Compact Mode | ✅ Complete | Auto-expand, 5-min timeout |
-| Draggable Window | ✅ Complete | Header drag region |
-| Color Scheme | ✅ Complete | Pure black & white (#000 / #FFF) |
-| UI Components | ✅ Complete | All using shadcn primitives |
-| macOS Transparency | ✅ Complete | NSWindow setup, toggle command |
-| File Access (Images) | ✅ Complete | Entitlements, picker, drag-drop |
-| Image Input Methods | ✅ Complete | Paste, file picker, drag-and-drop |
-| SDK Hooks | ⏳ Pending | PreToolUse, PostToolUse, etc. |
-| Permissions System | ⏳ Pending | canUseTool callbacks |
-| Clipboard Tools | ⏳ Pending | Read/write clipboard text |
-| Vision Tools | ⏳ Pending | Screenshots, image analysis |
-| Persistence | ⏳ Pending | SQLite conversation storage |
-| Custom Tools | ⏳ Pending | Script loader |
+| Tauri Shell | ✅ | Window, tray, hotkeys, IPC |
+| React UI | ✅ | Chat, conversations, markdown |
+| Agent Runtime | ✅ | Claude SDK, streaming |
+| Compact Mode | ✅ | Auto-expand, 5-min timeout |
+| Image Upload | ✅ | Paste, picker, drag-drop |
+| macOS Transparency | ✅ | NSWindow setup |
+| Permissions | ✅ | Full filesystem, camera, mic |
+| SDK Hooks | ⏳ | Pending |
+| Clipboard Tools | ⏳ | Pending |
+| Vision Tools | ⏳ | Pending |
 
 ---
 
-## 📝 Recent Changes
+## 📝 Recent Sessions
 
-### Session 35 (Nov 27, 2025)
-- **UI/UX Enhancements to Input Field and Chat Display** (COMPLETE)
-- **Summary:** Eight improvements focused on better text handling, cleaner chat bubbles, and improved user experience
-- **Changes:**
-  1. **Multi-line text overflow fix** - Changed from `rounded-full` to `rounded-[21px]` with `overflow-y-auto`
-  2. **File picker icon repositioned** - Moved inside input field, always visible, absolutely positioned
-  3. **Removed chat bubbles from AI responses** - Only user messages keep bubble style for cleaner interface
-  4. **Image upload loading indicator** - Added `Loader2` spinner, always-visible remove buttons
-  5. **ESC key dual purpose** - Interrupt when loading, close window when idle
-  6. **Dynamic compact view height** - Window adjusts 60-140px based on multi-line text content
-  7. **Paperclip icon vertical centering** - Changed parent to `items-center` for proper alignment
-  8. **Removed paperclip hover effect** - Added `hover:bg-transparent` for subtle appearance
-- **Modified `apps/tauri-shell/src/App.tsx`:**
-  - Imported `Loader2` icon from lucide-react
-  - Enhanced `handleInputChange()` to dynamically resize window in compact mode
-  - Updated ESC key handler for dual purpose (interrupt/close)
-  - Refactored message rendering to remove Card wrapper from assistant messages
-  - Repositioned paperclip button inside textarea with absolute positioning
-  - Added loading spinner to image preview area
-  - Made remove buttons always visible instead of hover-only
-- **Impact:** Much cleaner, more polished UI with better multi-line text handling and modern chat appearance
-- **Result:** All 8 improvements working perfectly
+**Session 36 (Nov 29)** - Documentation refresh: 3 core docs rewritten with SDK best practices
+**Session 35 (Nov 27)** - 8 UI/UX improvements (input, chat bubbles, ESC key, dynamic height)
+**Session 34 (Nov 27)** - Maximized Tauri permissions + conversation switching fix
+**Session 33 (Nov 27)** - Fixed drag-and-drop (disabled native fileDrop)
+**Session 32 (Nov 27)** - Fixed AsyncIterable bug (EPIPE crash)
+**Session 31 (Nov 27)** - Async/await image loading
+**Session 30 (Nov 26)** - Image upload feature (3 input methods)
+**Session 29 (Nov 26)** - EPIPE root cause fix (Rust stdout reader)
+**Session 28 (Nov 26)** - Readline stdout conflict fix
+**Session 27 (Nov 26)** - @mention agent autocomplete
+**Session 26 & earlier** - Interrupt, pin button, transparency, compact mode
 
-### Session 34 (Nov 28, 2025)
-- **Maximized Tauri Permissions & Fixed Conversation Switching** (COMPLETE)
-- **Task 1: Maximized Tauri Permissions**
-  - Made Tauri shell as permissive as possible to eliminate permission-related issues
-  - **Modified `apps/tauri-shell/src-tauri/Info.plist`:**
-    - Added full file system access (read/write user-selected files, Downloads folder)
-    - Added camera and microphone entitlements for future vision/voice features
-    - Added AppleScript/automation support for system integration
-    - Added network permissions (incoming/outgoing)
-  - **Modified `apps/tauri-shell/src-tauri/tauri.conf.json`:**
-    - Enabled all fs APIs (create, delete, copy, rename)
-    - Added all window manipulation capabilities
-    - Set permissive CSP for development
-    - Re-enabled file drop (was disabled in Session 33, now properly configured)
-  - **Created `PERMISSIONS_UPDATE.md`:** Comprehensive documentation of all permissions
-  - **Impact:** Eliminates permission-related errors during development
-- **Task 2: Fixed Conversation Switching Bug**
-  - **Problem:** When clicking on a historical conversation or creating a new one, the chat window didn't clear - stale messages from the previous conversation remained visible
-  - **Root Cause:** The `handleConversationSelect` function wasn't clearing the message state before loading new messages
-  - **Modified `apps/tauri-shell/src/App.tsx` (lines 519-531):**
-    - Added `loadMessages([])` to immediately clear messages when switching conversations
-    - Added `clearInProgressRef.current` guards to prevent auto-compact timer interference
-  - **Impact:** Clean UX - chat window now clears immediately when switching conversations
-- **Result:** Both improvements working perfectly
-
-### Session 33 (Nov 27, 2025)
-- **Fixed Drag-and-Drop Image Upload** (COMPLETE)
-- Problem: Drag-and-drop wasn't working while paste and file picker worked fine
-- Root cause: Tauri's native `fileDrop` API was blocking HTML5 drag events
-- Solution: Disabled native handler with `fileDropEnabled: false` in tauri.conf.json
-- **Modified `apps/tauri-shell/src-tauri/tauri.conf.json`:**
-  - Added `fileDropEnabled: false` to window configuration
-- **Modified `apps/tauri-shell/src/App.tsx`:**
-  - Added `onDragEnter` handler to properly detect drag start
-  - Added `stopPropagation()` and `currentTarget` checks to prevent event issues
-  - Moved drop zone to root div for entire-window drop area
-  - Added visual feedback with `ring-4 ring-primary` border during drag
-  - Enhanced UX: can now drop images anywhere on window, not just input area
-- **Result:** All three image input methods now work perfectly
-  1. Paste (Cmd+V) - works
-  2. File picker (paperclip button) - works
-  3. Drag-and-drop from Finder - NOW WORKS
-- **Impact:** Complete image upload feature with three convenient input methods
-
-### Session 32 (Nov 27, 2025)
-- **Fixed Image Upload AsyncIterable Bug** (COMPLETE)
-- Problem: Images crashed agent runtime with EPIPE errors due to `.length` access on AsyncIterable
-- Solution: Added type guard for string vs AsyncIterable in SDK adapter logging
-- **Modified `apps/agent-runtime/src/sdk-adapter.ts`:**
-  - Fixed prompt length logging to handle both string and AsyncIterable types
-  - Added comprehensive debug logging throughout SDK adapter
-- **Impact:** Image uploads now work without crashing Node.js process
-
-### Session 31 (Nov 27, 2025)
-- **Fixed Frontend Image Loading with Async/Await** (PARTIAL - Backend Issue Discovered)
-- Problem: Copy/paste and drag/drop were crashing/freezing frontend due to synchronous FileReader usage
-- Solution: Converted to Promise-based async/await pattern with comprehensive error handling
-- **Modified `apps/tauri-shell/src/App.tsx`:**
-  - Added `readFileAsBase64()` Promise wrapper for FileReader (lines 43-57)
-  - Made `handlePaste` fully async with proper error handling (lines 233-281)
-  - Made `handleDrop` fully async with proper error handling (lines 326-365)
-  - Added `isLoadingImages` state to prevent premature sending
-  - Added 10MB size validation with user alerts
-  - Disabled send/attach buttons during image loading
-  - Individual try/catch per image for partial failure recovery
-  - Updated placeholder text to show loading state
-- **Frontend Result:** Images now load successfully without crashes
-- **Backend Issue Discovered:** Agent runtime hangs when processing images from paste/drop
-  - File upload (paperclip) works fine
-  - Copy/paste captures data but backend freezes
-  - Drag/drop captures data but backend freezes
-  - All send same base64 format - unclear why different behavior
-  - Freeze occurs after SDK query creation, before any response
-- **Next Steps:** Debug backend image processing (see comprehensive troubleshooting plan in Next Task)
-- **Impact:** Frontend is robust, but feature blocked by backend hang
-
-### Session 30 (Nov 26, 2025)
-- **Implemented Clipboard and File Permission Feature** (COMPLETE)
-- Problem: Users couldn't provide file paths to images; assistant would fail to read them
-- Solution: Hybrid approach using Tauri Rust layer as privileged intermediary
-- **Created `apps/tauri-shell/src-tauri/Info.plist`:**
-  - Added macOS entitlements: `com.apple.security.files.user-selected.read-only`
-  - Added network access entitlement for API calls
-- **Modified `apps/tauri-shell/src-tauri/tauri.conf.json`:**
-  - Referenced entitlements file in bundle.macOS.entitlements
-- **Modified `apps/tauri-shell/src-tauri/Cargo.toml`:**
-  - Added base64 dependency for image encoding
-- **Modified `apps/tauri-shell/src-tauri/src/main.rs`:**
-  - Added `open_image_picker()` command using NSOpenPanel
-  - Added `read_image_as_base64()` command for privileged file reading
-  - Image validation for png, jpg, jpeg, gif, webp formats
-  - Returns ImageData struct with base64 data, mime type, and filename
-- **Modified `apps/tauri-shell/src/App.tsx`:**
-  - Added Paperclip icon import from lucide-react
-  - Added file picker button (📎) in input area when expanded
-  - Added drag-and-drop support with visual feedback (ring highlight)
-  - State management for isPickingFile and isDragging
-  - All three methods (paste/picker/drop) reset inactivity timer
-- **Three Input Methods Now Available:**
-  1. Clipboard paste (Cmd+V) - existing functionality
-  2. File picker button (📎) - new visual UI
-  3. Drag-and-drop from Finder - new convenience feature
-- **Impact:** Users can now easily add images via three convenient methods, all working within macOS sandbox
-- **Status:** Feature complete, app restarted, ready for user testing
-
-### Session 29 (Nov 26, 2025)
-- **Fixed Critical EPIPE Root Cause in Rust stdout Reader** (COMPLETE)
-- Root cause: `while let Ok(Some(line))` pattern silently exiting on read errors
-- Issue: Large JSON payloads caused read errors, terminating the stdout reader task
-- This caused subsequent Node.js writes to get EPIPE (nobody reading anymore)
-- **Fixed in `apps/tauri-shell/src-tauri/src/agent_ipc.rs`:**
-  - Replaced `while let Ok(Some(line))` with explicit `loop { match next_line() }`
-  - Added error logging for read failures
-  - Continue reading on errors instead of exiting (handle transient errors)
-  - Only exit on true EOF (Ok(None))
-  - Added exit logging to track when reader tasks stop
-  - Applied same fix to both stdout and stderr readers
-- **Impact:** Should completely resolve EPIPE errors with large payloads
-- **Note:** Session 28 fixes (readline, sendResponse) were helpful but didn't address root cause
-
-### Session 28 (Nov 26, 2025)
-- **Fixed Critical IPC EPIPE Error** (COMPLETE)
-- Root cause: readline interface conflicting with stdout IPC protocol
-- Fixed readline configuration by removing stdout output
-- Fixed missing emit() method calls (should be sendResponse())
-- Added comprehensive error handling for broken pipes in both Rust and Node.js
-- Added backpressure handling in sendResponse()
-- Added global exception handlers for EPIPE errors
-- **Files modified:**
-  - `apps/agent-runtime/src/index.ts` (readline config, error handlers)
-  - `apps/agent-runtime/src/sdk-adapter.ts` (emit → sendResponse, error handling)
-  - `apps/tauri-shell/src-tauri/src/agent_ipc.rs` (broken pipe detection)
-- **Impact:** Image vision feature now works reliably with large payloads
-
-### Session 27 (Nov 26, 2025)
-- **Implemented Agent @mention Functionality** (COMPLETE)
-- Added full @mention autocomplete support for invoking specialized agents
-- Frontend implementation:
-  - Added agent definitions with icons, names, and descriptions in App.tsx
-  - Created agent menu state management (showAgentMenu, selectedAgentIndex)
-  - Added regex-based filtering to detect @ mentions and filter agents
-  - Implemented keyboard navigation (Arrow keys, Tab, Enter, Escape)
-  - Created visual agent menu component matching slash command styling
-  - Menu shows agent icon, name, and description
-- Settings panel enhancement:
-  - Added new "Agents" section at top of Settings tab
-  - Listed all 4 built-in agents with icons and descriptions
-  - Added instructional text on using @mention syntax
-- Backend verification:
-  - Confirmed all 4 agents loading: researcher, coder, file-ops, analyst
-  - SDK routing with @mention syntax working correctly
-- **Files modified:**
-  - `apps/tauri-shell/src/App.tsx` (agent autocomplete menu and filtering logic)
-  - `apps/tauri-shell/src/components/Navigation.tsx` (agents section in Settings)
-- **Status:** Feature complete - users can @mention agents with autocomplete UI
-
-### Session 20 (Previous)
-- ✅ Added draggable header with `data-tauri-drag-region`
-- ✅ Enabled `startDragging` permission in Tauri config
-- ✅ Tested window dragging functionality
-
-### Session 19 (Previous)
-- ✅ Implemented compact window mode (90px → 600px)
-- ✅ Added 5-minute auto-timeout with activity tracking
-- ✅ Timer pauses during agent responses
+_See [CHANGELOG.md](./CHANGELOG.md) for detailed session information._
 
 ---
 
-**📝 Update Instructions:**
-Before clearing context, update:
-1. "Last Task Completed" → what you just finished
-2. "Next Task" → what to do next (with checklist)
-3. "Recent Changes" → add diff log entry
-4. "Last Updated" → current date
-5. Component status table (if progress made)
+## 🗂️ File Index
+
+- **[claude.md](./claude.md)** - Project overview
+- **[STATUS.md](./STATUS.md)** - This file
+- **[CHANGELOG.md](./CHANGELOG.md)** - Detailed session history
+- **[docs/](./docs/)** - Implementation guides (setup, Tauri, agent, tools, UI, IPC, security)
+
+---
+
+## 💡 Key Info
+
+**Tech Stack:** Tauri 1.5 (Rust) + React 18 + TypeScript + Vite + Tailwind + shadcn/ui + Node.js 20+ + Claude Agent SDK 0.1.50 + SQLite
+
+**Architecture:** Tauri Shell (window/tray/IPC) → Agent Runtime (Node/SDK) → Tool Layer
+
+**Window:** 365×60 (compact) → 365×600 (expanded), `Cmd+Shift+Space`
+
+**Principles:**
+1. Fast launch - minimal initialization
+2. Minimal RAM - lightweight & long-lived
+3. Secure by default - sandbox everything
+4. Easy extensibility - simple tool additions
+
+---
+
+**Update Instructions:** Before clearing context, update: Current Task, Last Completed, Recent Sessions, Component Status, Last Updated date.

@@ -1,456 +1,924 @@
-# 03 - Agent Runtime
+# 03 - Agent Runtime (Claude Agent SDK)
 
 ## Overview
 
-The agent runtime is a long-lived Node.js process that manages the Claude agent instance, maintains conversation state, executes tools, and communicates with the Tauri shell via stdio.
+The agent runtime is a long-lived Node.js process powered by the **Claude Agent SDK** (`@anthropic-ai/claude-agent-sdk`). It manages conversations, executes tools via MCP servers, and communicates with the Tauri shell through stdio.
 
-**Key responsibilities:**
-- Initialize and manage Claude SDK client
-- Maintain conversation history
-- Register and execute tools
-- Stream responses back to UI
-- Handle errors gracefully
+**Key Responsibilities:**
+- Wrap SDK `query()` generator for stdio IPC compatibility
+- Manage conversation persistence via SQLite
+- Register tools as an MCP server (`createSdkMcpServer`)
+- Support session resumption for conversation continuity
+- Handle image attachments (AsyncIterable<SDKUserMessage>)
+- Provide interrupt capability for long-running queries
+- Support slash commands and @agent mentions
+
+**Architecture Philosophy:**
+- ✅ **SDK-First:** Leverage SDK's built-in conversation management, tool execution, and streaming
+- ✅ **MCP Integration:** Register all tools as an MCP server for proper SDK integration
+- ✅ **Extensible:** Designed to accommodate future enhancements (hooks, memory, vector DB)
+- ✅ **IPC Bridge:** Maintain backward compatibility with existing Tauri shell protocol
+
+---
 
 ## Core Architecture
 
 ```
-┌─────────────────────────────────────┐
-│         Agent Runtime (Node)        │
-├─────────────────────────────────────┤
-│  ┌──────────────┐  ┌─────────────┐ │
-│  │ IPC Handler  │  │   Config    │ │
-│  │  (stdio)     │  │  Loader     │ │
-│  └──────┬───────┘  └─────────────┘ │
-│         │                           │
-│  ┌──────▼────────────────────────┐ │
-│  │   Agent Orchestrator          │ │
-│  │  - Conversation state         │ │
-│  │  - Message handling           │ │
-│  │  - Streaming coordination     │ │
-│  └──────┬────────────────────────┘ │
-│         │                           │
-│  ┌──────▼────────┐  ┌────────────┐ │
-│  │ Claude SDK    │  │ Tool Layer │ │
-│  │ Client        │  │            │ │
-│  └───────────────┘  └────────────┘ │
-└─────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                 Agent Runtime (Node.js)                     │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌────────────────────────────────────────────────────┐    │
+│  │            IPC Handler (index.ts)                  │    │
+│  │  - Readline stdio listener                         │    │
+│  │  - Request routing (user_message, load_convo, etc) │    │
+│  │  - JSON request parsing                            │    │
+│  └──────────────────┬─────────────────────────────────┘    │
+│                     │                                        │
+│  ┌─────────────────▼────────────────────────────────────┐  │
+│  │         SDK Adapter (sdk-adapter.ts)                 │  │
+│  │                                                       │  │
+│  │  - Wraps SDK query() AsyncGenerator                  │  │
+│  │  - Converts SDKMessage → IPC AgentResponse           │  │
+│  │  - Manages session resumption (currentSessionId)     │  │
+│  │  - Handles image attachments (AsyncIterable)         │  │
+│  │  - Provides interrupt() capability                   │  │
+│  │  - Slash command handling (/reset, /help, etc)      │  │
+│  │  - @agent mention routing                           │  │
+│  └──────────────────┬───────────────────────────────────┘  │
+│                     │                                        │
+│  ┌─────────────────▼────────────────────────────────────┐  │
+│  │      Claude Agent SDK (@anthropic-ai/claude-*)       │  │
+│  │                                                       │  │
+│  │  query({                                             │  │
+│  │    prompt: string | AsyncIterable<SDKUserMessage>,  │  │
+│  │    options: {                                        │  │
+│  │      model: 'claude-sonnet-4-5-20250929',           │  │
+│  │      resume: sessionId,    ← Conversation continuity│  │
+│  │      mcpServers: { ... },  ← Tool registration      │  │
+│  │      agents: { ... },      ← SDK subagents          │  │
+│  │      maxTurns: 10          ← Agentic loop limit     │  │
+│  │    }                                                 │  │
+│  │  })                                                  │  │
+│  └──────────────────┬───────────────────────────────────┘  │
+│                     │                                        │
+│       ┌─────────────┴─────────────┐                         │
+│       │                           │                          │
+│  ┌────▼─────────┐         ┌──────▼──────────┐              │
+│  │ MCP Server   │         │  Persistence    │              │
+│  │ (sdk-tools)  │         │  (SQLite)       │              │
+│  │              │         │                 │              │
+│  │ - 11 tools   │         │ - Conversations │              │
+│  │ - Filesystem │         │ - Messages      │              │
+│  │ - System     │         │ - Session IDs   │              │
+│  │ - Clipboard  │         │                 │              │
+│  │ - Vision     │         │                 │              │
+│  └──────────────┘         └─────────────────┘              │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-## Entry Point
+**Future Enhancements (Planned):**
+```
+┌─────────────────────────────────────────────────────────────┐
+│  🔮 FUTURE: Enhanced Architecture with Memory System        │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌────────────────────────────────────────────────────┐    │
+│  │              SDK Hooks Layer (NEW)                 │    │
+│  │                                                     │    │
+│  │  hooks: {                                          │    │
+│  │    PreToolUse: [permissionCheck, rateLimit],      │    │
+│  │    PostToolUse: [logToVectorDB, updateMemory],    │    │
+│  │    SessionEnd: [persistToSQLite, indexMemory]     │    │
+│  │  }                                                 │    │
+│  └────────────────────┬───────────────────────────────┘    │
+│                       │                                      │
+│  ┌────────────────────▼──────────────────────────────┐     │
+│  │         Memory System (NEW)                       │     │
+│  │                                                    │     │
+│  │  - Vector DB (LanceDB or Chroma)                 │     │
+│  │  - Semantic search over conversation history     │     │
+│  │  - Contextual retrieval for long-term memory     │     │
+│  │  - Embeddings via Ollama or Voyage AI           │     │
+│  └────────────────────────────────────────────────────┘     │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
 
-**src/index.ts:**
+---
+
+## Entry Point (index.ts)
+
+The agent runtime entry point sets up the SDK adapter and handles IPC requests.
+
+**Key Components:**
+1. **Readline Interface:** Reads line-delimited JSON from stdin (Tauri shell → Node)
+2. **SDK Adapter:** Wraps Claude Agent SDK for stdio compatibility
+3. **MCP Server:** Created via `createSDKTools()` with 11 tools
+4. **Request Router:** Handles 7 request types (user_message, load_conversation, etc.)
+
+**apps/agent-runtime/src/index.ts:**
 
 ```typescript
 import { createInterface } from 'readline';
-import { AgentOrchestrator } from './agent';
-import { loadConfig } from './config';
-import { setupTools } from './tools';
+import { SDKAdapter, type ImageAttachment } from './sdk-adapter.js';
+import { loadConfig } from './config.js';
+import { createSDKTools } from './sdk-tools.js';
 
-async function main() {
-  try {
-    // Load configuration
-    const config = loadConfig();
-
-    // Setup tools
-    const tools = setupTools(config);
-
-    // Create agent orchestrator
-    const orchestrator = new AgentOrchestrator(config, tools);
-    await orchestrator.initialize();
-
-    // Setup stdio IPC
-    const rl = createInterface({
-      input: process.stdin,
-      output: process.stdout,
-      terminal: false,
-    });
-
-    // Handle incoming messages
-    rl.on('line', async (line: string) => {
-      try {
-        const request = JSON.parse(line);
-        await orchestrator.handleRequest(request);
-      } catch (error) {
-        const errorResponse = {
-          type: 'error',
-          error: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: Date.now(),
-        };
-        console.log(JSON.stringify(errorResponse));
-      }
-    });
-
-    rl.on('close', () => {
-      process.exit(0);
-    });
-
-    // Send ready signal
-    console.log(JSON.stringify({ type: 'ready', timestamp: Date.now() }));
-
-  } catch (error) {
-    console.error('Fatal error:', error);
-    process.exit(1);
-  }
+interface AgentRequest {
+  id: string;
+  kind: 'user_message' | 'clear_history' | 'load_conversation' |
+        'new_conversation' | 'list_conversations' | 'delete_conversation' |
+        'interrupt';
+  message?: string;
+  conversation_id?: string;
+  images?: string; // JSON string of ImageAttachment[]
 }
 
-// Handle graceful shutdown
-process.on('SIGTERM', () => {
-  console.error('Received SIGTERM, shutting down...');
-  process.exit(0);
-});
+async function main() {
+  // Load configuration (API key, model, allowed directories, etc.)
+  const config = loadConfig();
 
-process.on('SIGINT', () => {
-  console.error('Received SIGINT, shutting down...');
-  process.exit(0);
+  // Create MCP server with all 11 tools (filesystem, system, clipboard, vision)
+  const mcpServer = createSDKTools(config);
+  console.error('[INFO] SDK MCP server created with 11 tools');
+
+  // Create SDK adapter (bridges SDK query() with stdio IPC)
+  const adapter = new SDKAdapter(config, mcpServer);
+  console.error('[INFO] SDK adapter initialized');
+
+  // Setup stdio IPC
+  // IMPORTANT: Do NOT set output to process.stdout - conflicts with IPC protocol
+  const rl = createInterface({
+    input: process.stdin,
+    terminal: false,
+  });
+
+  // Handle incoming messages
+  rl.on('line', async (line: string) => {
+    try {
+      const request: AgentRequest = JSON.parse(line);
+
+      switch (request.kind) {
+        case 'user_message':
+          // Parse image attachments if provided
+          let images: ImageAttachment[] = [];
+          if (request.images) {
+            images = JSON.parse(request.images);
+          }
+
+          // Process via SDK
+          await adapter.processUserMessage(request.message!, request.id, images);
+          break;
+
+        case 'clear_history':
+          adapter.clearSession();
+          console.log(JSON.stringify({ type: 'done', id: request.id, timestamp: Date.now() }));
+          break;
+
+        case 'new_conversation':
+          const newConv = adapter.createConversation();
+          console.log(JSON.stringify({
+            type: 'done',
+            id: request.id,
+            data: { conversation: newConv },
+            timestamp: Date.now()
+          }));
+          break;
+
+        case 'load_conversation':
+          const result = adapter.loadConversation(request.conversation_id!);
+          console.log(JSON.stringify({
+            type: 'done',
+            id: request.id,
+            data: result,
+            timestamp: Date.now()
+          }));
+          break;
+
+        case 'interrupt':
+          await adapter.interrupt();
+          console.log(JSON.stringify({ type: 'done', id: request.id, timestamp: Date.now() }));
+          break;
+
+        // ... other request handlers
+      }
+    } catch (error) {
+      console.log(JSON.stringify({
+        type: 'error',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: Date.now()
+      }));
+    }
+  });
+
+  // Send ready signal to Tauri shell
+  console.log(JSON.stringify({ type: 'ready', timestamp: Date.now() }));
+}
+
+// Handle EPIPE errors gracefully (broken pipe when parent closes)
+process.on('uncaughtException', (error) => {
+  if ((error as any).code === 'EPIPE') {
+    console.error('EPIPE error - parent process closed pipe');
+    process.exit(0);
+  }
+  throw error;
 });
 
 main();
 ```
 
-## Configuration
+**IPC Protocol:**
+- **Input (stdin):** Line-delimited JSON requests from Tauri shell
+- **Output (stdout):** Line-delimited JSON responses (token, tool_use, done, error)
+- **Logging (stderr):** Debug logs, errors (won't interfere with IPC)
 
-**src/config.ts:**
+---
 
-```typescript
-import dotenv from 'dotenv';
-import path from 'path';
+## SDK Adapter (sdk-adapter.ts)
 
-dotenv.config();
+The `SDKAdapter` class bridges the Claude Agent SDK with our stdio IPC protocol.
 
-export interface AppConfig {
-  // Claude API
-  anthropicApiKey: string;
-  modelId: string;
-  maxTokens: number;
+### Core Responsibilities
 
-  // Tool configuration
-  allowedRootDir: string;
-  maxFileSizeMb: number;
-
-  // Optional integrations
-  comfyuiApiUrl?: string;
-  firebaseProjectId?: string;
-
-  // Runtime settings
-  logLevel: 'debug' | 'info' | 'warn' | 'error';
-}
-
-export function loadConfig(): AppConfig {
-  const config: AppConfig = {
-    anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
-    modelId: process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022',
-    maxTokens: parseInt(process.env.MAX_TOKENS || '4096', 10),
-
-    allowedRootDir: process.env.ALLOWED_ROOT_DIR || path.join(process.env.HOME || '', 'workspace'),
-    maxFileSizeMb: parseInt(process.env.MAX_FILE_SIZE_MB || '10', 10),
-
-    comfyuiApiUrl: process.env.COMFYUI_API_URL,
-    firebaseProjectId: process.env.FIREBASE_PROJECT_ID,
-
-    logLevel: (process.env.LOG_LEVEL as any) || 'info',
-  };
-
-  // Validate required fields
-  if (!config.anthropicApiKey) {
-    throw new Error('ANTHROPIC_API_KEY is required');
-  }
-
-  return config;
-}
-```
-
-## Agent Orchestrator
-
-**src/agent.ts:**
+**apps/agent-runtime/src/sdk-adapter.ts:**
 
 ```typescript
-import Anthropic from '@anthropic-ai/sdk';
-import type { AppConfig } from './config';
-import type { Tool } from './tools';
+import {
+  query,
+  type SDKMessage,
+  type SDKUserMessage,
+  type Query
+} from '@anthropic-ai/claude-agent-sdk';
 
-export interface AgentRequest {
-  id: string;
-  kind: 'user_message' | 'clear_history';
-  message?: string;
-  attachments?: Array<{ path: string; mime: string }>;
-  metadata?: Record<string, unknown>;
-}
-
-export interface AgentResponse {
-  type: 'token' | 'tool_use' | 'tool_result' | 'done' | 'error';
-  id: string;
-  data?: unknown;
-  token?: string;
-  error?: string;
-  timestamp: number;
-}
-
-export class AgentOrchestrator {
-  private client: Anthropic;
+export class SDKAdapter {
   private config: AppConfig;
-  private tools: Tool[];
-  private conversationHistory: Anthropic.MessageParam[] = [];
+  private mcpServer: McpSdkServerConfigWithInstance;
+  private currentSessionId?: string;  // For conversation continuity
+  private currentConversationId?: string;  // Database ID
+  private currentQuery?: Query;  // For interrupt support
+  private db: ConversationDatabase;
+  private agents: Record<string, AgentDefinition>;  // SDK subagents
 
-  constructor(config: AppConfig, tools: Tool[]) {
+  constructor(config: AppConfig, mcpServer: McpSdkServerConfigWithInstance) {
     this.config = config;
-    this.tools = tools;
-    this.client = new Anthropic({
-      apiKey: config.anthropicApiKey,
-    });
+    this.mcpServer = mcpServer;
+    this.db = new ConversationDatabase();
+    this.initializeAgents();
   }
 
-  async initialize(): Promise<void> {
-    // Perform any async initialization
-    this.log('info', 'Agent orchestrator initialized');
-  }
-
-  async handleRequest(request: AgentRequest): Promise<void> {
-    if (request.kind === 'clear_history') {
-      this.conversationHistory = [];
-      this.sendResponse({
-        type: 'done',
-        id: request.id,
-        timestamp: Date.now(),
-      });
-      return;
-    }
-
-    if (request.kind === 'user_message' && request.message) {
-      await this.processUserMessage(request);
-    }
-  }
-
-  private async processUserMessage(request: AgentRequest): Promise<void> {
-    try {
-      // Add user message to history
-      this.conversationHistory.push({
-        role: 'user',
-        content: request.message!,
-      });
-
-      // Create message with streaming
-      const stream = await this.client.messages.create({
-        model: this.config.modelId,
-        max_tokens: this.config.maxTokens,
-        messages: this.conversationHistory,
-        tools: this.tools.map(t => ({
-          name: t.name,
-          description: t.description,
-          input_schema: t.input_schema,
-        })),
-        stream: true,
-      });
-
-      let assistantMessage = '';
-      const toolUses: Array<{ id: string; name: string; input: any }> = [];
-
-      // Process stream
-      for await (const event of stream) {
-        if (event.type === 'content_block_start') {
-          if (event.content_block.type === 'text') {
-            // Text block started
-          } else if (event.content_block.type === 'tool_use') {
-            toolUses.push({
-              id: event.content_block.id,
-              name: event.content_block.name,
-              input: {},
-            });
-
-            this.sendResponse({
-              type: 'tool_use',
-              id: request.id,
-              data: {
-                toolId: event.content_block.id,
-                toolName: event.content_block.name,
-              },
-              timestamp: Date.now(),
-            });
-          }
-        } else if (event.type === 'content_block_delta') {
-          if (event.delta.type === 'text_delta') {
-            assistantMessage += event.delta.text;
-
-            this.sendResponse({
-              type: 'token',
-              id: request.id,
-              token: event.delta.text,
-              timestamp: Date.now(),
-            });
-          } else if (event.delta.type === 'input_json_delta') {
-            // Accumulate tool input
-            const lastToolUse = toolUses[toolUses.length - 1];
-            if (lastToolUse) {
-              lastToolUse.input = {
-                ...lastToolUse.input,
-                ...JSON.parse(event.delta.partial_json),
-              };
-            }
-          }
-        } else if (event.type === 'message_stop') {
-          // Message complete
-          break;
-        }
-      }
-
-      // Execute any tool uses
-      if (toolUses.length > 0) {
-        await this.executeTools(request.id, toolUses);
-      }
-
-      // Add assistant message to history
-      this.conversationHistory.push({
-        role: 'assistant',
-        content: assistantMessage,
-      });
-
-      // Send done signal
-      this.sendResponse({
-        type: 'done',
-        id: request.id,
-        timestamp: Date.now(),
-      });
-
-    } catch (error) {
-      this.sendResponse({
-        type: 'error',
-        id: request.id,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: Date.now(),
-      });
-    }
-  }
-
-  private async executeTools(
+  /**
+   * Process user message through SDK
+   */
+  async processUserMessage(
+    message: string,
     requestId: string,
-    toolUses: Array<{ id: string; name: string; input: any }>
+    images?: ImageAttachment[]
   ): Promise<void> {
-    for (const toolUse of toolUses) {
-      const tool = this.tools.find(t => t.name === toolUse.name);
+    // 1. Handle slash commands (/reset, /help, /session)
+    if (message.startsWith('/')) {
+      const handled = await this.handleSlashCommand(message, requestId);
+      if (handled) return;
+    }
 
-      if (!tool) {
-        this.sendResponse({
-          type: 'error',
-          id: requestId,
-          error: `Tool not found: ${toolUse.name}`,
-          timestamp: Date.now(),
-        });
-        continue;
+    // 2. Check for @agent mentions (@researcher, @coder, etc.)
+    const agentMention = message.match(/^@(\w+)\s+(.+)/);
+    if (agentMention && agentMention[1] in this.agents) {
+      // SDK will auto-route based on agent name in prompt
+    }
+
+    // 3. Save user message to database
+    this.db.addMessage(this.currentConversationId, 'user', message);
+
+    // 4. Build prompt (string or AsyncIterable for images)
+    let promptToSend: string | AsyncIterable<SDKUserMessage>;
+
+    if (images && images.length > 0) {
+      // For images, create AsyncIterable with multimodal content
+      const contentParts = [
+        { type: 'text', text: message },
+        ...images.map(img => ({
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: img.mime_type,
+            data: img.data
+          }
+        }))
+      ];
+
+      promptToSend = (async function* () {
+        yield {
+          type: 'user',
+          message: { role: 'user', content: contentParts },
+          parent_tool_use_id: null
+        };
+      })();
+    } else {
+      // Text-only: simple string
+      promptToSend = message;
+    }
+
+    // 5. Create SDK query
+    const q = query({
+      prompt: promptToSend,
+      options: {
+        model: this.config.modelId || 'claude-sonnet-4-5-20250929',
+        resume: this.currentSessionId,  // Resume previous conversation
+        mcpServers: {
+          'desktop-assistant-tools': this.mcpServer  // Register tools
+        },
+        agents: this.agents,  // SDK subagents
+        maxTurns: 10
+      }
+    });
+
+    this.currentQuery = q;  // Store for interrupt support
+
+    // 6. Stream SDK messages and convert to IPC format
+    for await (const sdkMessage of q) {
+      // Capture session ID from first message
+      if (!this.currentSessionId && 'session_id' in sdkMessage) {
+        this.currentSessionId = sdkMessage.session_id;
       }
 
-      try {
-        const result = await tool.execute(toolUse.input);
+      await this.handleSDKMessage(sdkMessage);
+    }
 
-        this.sendResponse({
-          type: 'tool_result',
-          id: requestId,
-          data: {
-            toolId: toolUse.id,
-            toolName: toolUse.name,
-            result,
-          },
-          timestamp: Date.now(),
-        });
+    // 7. Save assistant response to database
+    this.db.addMessage(this.currentConversationId, 'assistant', this.currentAssistantMessage);
 
-        // Add tool result to conversation
-        this.conversationHistory.push({
-          role: 'user',
-          content: [
-            {
-              type: 'tool_result',
-              tool_use_id: toolUse.id,
-              content: JSON.stringify(result),
-            },
-          ],
-        });
+    this.currentQuery = undefined;  // Clear reference
+  }
 
-      } catch (error) {
-        this.sendResponse({
-          type: 'error',
-          id: requestId,
-          error: `Tool execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          timestamp: Date.now(),
-        });
-      }
+  /**
+   * Interrupt currently running query
+   */
+  async interrupt(): Promise<void> {
+    if (this.currentQuery) {
+      await this.currentQuery.interrupt();
+      this.currentQuery = undefined;
     }
   }
 
-  private sendResponse(response: AgentResponse): void {
-    console.log(JSON.stringify(response));
-  }
+  /**
+   * Handle individual SDK message
+   */
+  private async handleSDKMessage(sdkMessage: SDKMessage): Promise<void> {
+    switch (sdkMessage.type) {
+      case 'assistant':
+        // Complete assistant message (non-streaming)
+        await this.handleAssistantMessage(sdkMessage);
+        break;
 
-  private log(level: string, message: string, data?: unknown): void {
-    if (this.config.logLevel === 'debug' || level !== 'debug') {
-      console.error(`[${level.toUpperCase()}] ${message}`, data || '');
+      case 'stream_event':
+        // Streaming token updates
+        await this.handleStreamEvent(sdkMessage);
+        break;
+
+      case 'result':
+        // Conversation complete
+        await this.handleResultMessage(sdkMessage);
+        break;
+
+      case 'system':
+        // System messages (status, init, compact_boundary)
+        this.log('info', `SDK system: ${sdkMessage.subtype}`);
+        break;
+
+      case 'tool_progress':
+        // Tool execution progress (future UI enhancement)
+        this.log('info', `Tool ${sdkMessage.tool_name}: ${sdkMessage.elapsed_time_seconds}s`);
+        break;
     }
   }
 }
 ```
 
-## Type Definitions
+### Image Handling (AsyncIterable Pattern)
 
-**src/types.ts:**
+**Critical Detail:** When images are present, the prompt becomes an `AsyncIterable<SDKUserMessage>` instead of a simple string. This is a key SDK pattern.
 
+**Why AsyncIterable?**
+- SDK requires `MessageParam.content` to be an array of `TextBlockParam | ImageBlockParam`
+- We wrap this in an async generator that yields a single `SDKUserMessage`
+- **Bug Fix (Session 32):** Never call `.length` on `AsyncIterable` (no `.length` property exists)
+
+**Type Guard Pattern:**
 ```typescript
-export interface Tool {
-  name: string;
-  description: string;
-  input_schema: {
-    type: 'object';
-    properties: Record<string, unknown>;
-    required?: string[];
-  };
-  execute: (input: any) => Promise<any>;
-}
-
-export interface ConversationMessage {
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  timestamp: number;
+// SAFE: Check type before accessing properties
+if (typeof promptToSend === 'string') {
+  console.log('Prompt length:', promptToSend.length);
+} else {
+  console.log('Prompt type: AsyncIterable (with images)');
 }
 ```
 
-## Error Handling
+---
 
-Best practices:
-1. **Always catch errors** in request handlers
-2. **Send error responses** via stdio (don't crash)
-3. **Log to stderr** for debugging
-4. **Validate inputs** before tool execution
-5. **Handle API rate limits** with retries
+## Session Resumption & Conversation Continuity
 
-## Testing
+**SDK Feature:** `resume` option in `query()` maintains conversation history across multiple queries.
 
-**src/__tests__/agent.test.ts:**
+**How It Works:**
+1. **First Query:** SDK generates a `session_id` and includes it in first message
+2. **Subsequent Queries:** Pass `resume: session_id` to continue conversation
+3. **Database Sync:** We also store messages in SQLite for persistence
 
+**Benefits:**
+- ✅ SDK manages conversation state internally
+- ✅ No need to manually build `MessageParam[]` array
+- ✅ Tool call history automatically maintained
+- ✅ Conversation context preserved across app restarts (via database)
+
+**Implementation:**
 ```typescript
-import { AgentOrchestrator } from '../agent';
-import { loadConfig } from '../config';
+// Capture session ID from first SDK message
+if (!this.currentSessionId && 'session_id' in sdkMessage) {
+  this.currentSessionId = sdkMessage.session_id;
+  this.log('info', `Session started: ${this.currentSessionId}`);
+}
 
-describe('AgentOrchestrator', () => {
-  it('should initialize without errors', async () => {
-    const config = loadConfig();
-    const orchestrator = new AgentOrchestrator(config, []);
-    await orchestrator.initialize();
-  });
-
-  // Add more tests
+// Resume conversation in next query
+const q = query({
+  prompt: message,
+  options: {
+    resume: this.currentSessionId,  // ← Continue conversation
+    // ...
+  }
 });
 ```
 
-## Next Steps
+**Database Integration:**
+- User/assistant messages stored in SQLite
+- On `loadConversation()`, retrieve messages from DB
+- Session ID cleared (will rebuild from message history)
 
-- Implement tool layer → [04-tool-layer.md](./04-tool-layer.md)
-- Define IPC protocol → [06-ipc-protocol.md](./06-ipc-protocol.md)
-- Connect to UI → [05-web-ui.md](./05-web-ui.md)
+---
+
+## MCP Server & Tool Integration
+
+**SDK Requirement:** Tools must be registered as MCP servers, not passed directly.
+
+**Our Approach:**
+- Use `createSdkMcpServer()` helper from SDK
+- Define tools with `tool()` helper and Zod schemas
+- Register server via `mcpServers` option in `query()`
+
+**apps/agent-runtime/src/sdk-tools.ts:**
+
+```typescript
+import { tool, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
+import { z } from 'zod';
+
+export function createSDKTools(config: AppConfig) {
+  // Define tools with SDK tool() helper
+  const read_file = tool(
+    'read_file',
+    'Read contents of a text file',
+    {
+      path: z.string().describe('Relative path to file')
+    },
+    async (args: { path: string }) => {
+      const content = await fs.readFile(args.path, 'utf-8');
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({ path: args.path, content }, null, 2)
+        }]
+      };
+    }
+  );
+
+  // ... 10 more tools (write_file, list_files, etc.)
+
+  // Create MCP server with all tools
+  return createSdkMcpServer({
+    name: 'desktop-assistant-tools',
+    version: '1.0.0',
+    tools: [
+      // Filesystem
+      list_files, read_file, write_file, search_files,
+      // System
+      run_shell_command, get_system_info, open_in_default_app,
+      // Clipboard
+      read_clipboard, write_clipboard,
+      // Vision
+      capture_screenshot, analyze_image
+    ]
+  });
+}
+```
+
+**Tool Categories (11 total):**
+| Category | Tools | Description |
+|----------|-------|-------------|
+| Filesystem | `list_files`, `read_file`, `write_file`, `search_files` | File operations within allowed directory |
+| System | `run_shell_command`, `get_system_info`, `open_in_default_app` | System utilities and shell access |
+| Clipboard | `read_clipboard`, `write_clipboard` | System clipboard integration |
+| Vision | `capture_screenshot`, `analyze_image` | Screenshot capture and image analysis |
+
+**Security:**
+- Path validation (no traversal outside `allowedRootDir`)
+- Command whitelist for `run_shell_command`
+- File size limits (10MB default)
+- Timeout on shell commands (10s)
+
+---
+
+## Slash Commands & @Agent Mentions
+
+**Slash Commands** (`/reset`, `/help`, `/session`):
+- Handled before passing to SDK
+- Built-in commands processed by adapter
+- Unknown commands passed through to SDK (e.g., `/ultrathink`)
+
+**@Agent Mentions** (`@researcher`, `@coder`, `@analyst`):
+- Invokes SDK subagents
+- Format: `@agentname rest of prompt`
+- SDK auto-routes to appropriate agent
+- Agents loaded from `~/.claude/agents/` directory
+
+**Implementation:**
+```typescript
+// Check for slash commands
+if (message.startsWith('/')) {
+  const handled = await this.handleSlashCommand(message, requestId);
+  if (handled) return;  // Command processed, done
+}
+
+// Check for @mentions
+const agentMention = message.match(/^@(\w+)\s+(.+)/);
+if (agentMention && agentMention[1] in this.agents) {
+  // SDK will auto-route based on agent name
+}
+```
+
+---
+
+## Error Handling & EPIPE Recovery
+
+**Critical Fixes (Sessions 28-29):**
+
+### EPIPE Errors (Broken Pipe)
+**Problem:** Rust stdout reader would silently exit on large payloads, causing Node.js to crash with EPIPE.
+
+**Solution:**
+1. **Rust Side (agent_ipc.rs):**
+   - Changed from `while let Ok(Some(line))` to explicit `match` with error handling
+   - Continue reading on transient errors (don't exit loop)
+   - Only exit on true EOF
+
+2. **Node Side (sdk-adapter.ts):**
+   - Check `process.stdout.writable` before writing
+   - Catch EPIPE errors gracefully
+   - Global exception handler for uncaught EPIPE
+
+**Implementation:**
+```typescript
+private sendResponse(response: AgentResponse): void {
+  try {
+    if (!process.stdout.writable) {
+      this.log('error', 'stdout not writable - pipe may be closed');
+      return;
+    }
+
+    const success = process.stdout.write(JSON.stringify(response) + '\n');
+
+    if (!success) {
+      this.log('warn', 'stdout buffer full - backpressure detected');
+    }
+  } catch (error) {
+    if ((error as any).code === 'EPIPE') {
+      this.log('error', 'Broken pipe - parent process closed stdout');
+    }
+  }
+}
+```
+
+### Readline Stdout Conflict
+**Problem:** Using `output: process.stdout` in readline conflicts with IPC protocol.
+
+**Solution:** Only set `input`, not `output` (logging goes to stderr).
+
+---
+
+## Future Enhancements
+
+### 1. SDK Hooks (Not Yet Implemented)
+
+**Planned Integration Points:**
+
+```typescript
+const q = query({
+  prompt: message,
+  options: {
+    hooks: {
+      // Permission checks before tool execution
+      PreToolUse: [
+        {
+          hooks: [async (input) => {
+            // Check if tool is allowed for current context
+            const allowed = await checkPermission(input.tool_name);
+            return { continue: allowed };
+          }]
+        }
+      ],
+
+      // Log tool results, index to memory
+      PostToolUse: [
+        {
+          hooks: [async (input) => {
+            // Save to vector database for memory
+            await indexToolResult(input.tool_name, input.result);
+
+            // Persist to SQLite
+            await db.logToolUse(input.tool_name, input.input, input.result);
+
+            return { continue: true };
+          }]
+        }
+      ],
+
+      // Persist conversation on completion
+      SessionEnd: [
+        {
+          hooks: [async (input) => {
+            // Save session to database
+            await db.saveSession(input.session_id, input.conversation);
+
+            // Index conversation to vector DB
+            await indexConversation(input.conversation);
+
+            return { continue: true };
+          }]
+        }
+      ]
+    }
+  }
+});
+```
+
+**Use Cases:**
+- ✅ Automatic conversation persistence
+- ✅ Tool usage analytics
+- ✅ Permission system
+- ✅ Rate limiting
+- ✅ Memory indexing
+
+**Status:** Planned for future implementation (Phase 7 of SDK migration)
+
+---
+
+### 2. Memory System (Future Architecture)
+
+**Goal:** Add long-term memory using vector database for semantic search.
+
+**Planned Architecture:**
+
+```
+┌─────────────────────────────────────────────────┐
+│           Memory System Architecture            │
+├─────────────────────────────────────────────────┤
+│                                                  │
+│  ┌───────────────────────────────────────────┐ │
+│  │  Vector Database (LanceDB or Chroma)      │ │
+│  │                                            │ │
+│  │  - Embeddings: Ollama (nomic-embed-text)  │ │
+│  │  - Storage: ~/.claude/memory/             │ │
+│  │  - Index: Conversation chunks (512 tokens)│ │
+│  │  - Search: Semantic similarity (cosine)   │ │
+│  └───────────────────────────────────────────┘ │
+│                                                  │
+│  ┌───────────────────────────────────────────┐ │
+│  │  Memory Manager (NEW)                     │ │
+│  │                                            │ │
+│  │  async function retrieveMemory(query) {   │ │
+│  │    // 1. Generate query embedding         │ │
+│  │    const embedding = await embed(query);  │ │
+│  │                                            │ │
+│  │    // 2. Vector similarity search         │ │
+│  │    const results = await vectorDB.search({│ │
+│  │      vector: embedding,                   │ │
+│  │      limit: 5                             │ │
+│  │    });                                    │ │
+│  │                                            │ │
+│  │    // 3. Augment prompt with context     │ │
+│  │    return results.map(r => r.text);      │ │
+│  │  }                                        │ │
+│  └───────────────────────────────────────────┘ │
+│                                                  │
+│  ┌───────────────────────────────────────────┐ │
+│  │  Integration Point: PostToolUse Hook      │ │
+│  │                                            │ │
+│  │  PostToolUse: [async (input) => {         │ │
+│  │    // Extract meaningful content          │ │
+│  │    const content = extractContent(        │ │
+│  │      input.tool_name,                     │ │
+│  │      input.result                         │ │
+│  │    );                                     │ │
+│  │                                            │ │
+│  │    // Generate embedding                  │ │
+│  │    const embedding = await embed(content);│ │
+│  │                                            │ │
+│  │    // Index to vector DB                  │ │
+│  │    await vectorDB.insert({                │ │
+│  │      id: generateId(),                    │ │
+│  │      text: content,                       │ │
+│  │      vector: embedding,                   │ │
+│  │      metadata: {                          │ │
+│  │        tool: input.tool_name,             │ │
+│  │        timestamp: Date.now(),             │ │
+│  │        conversation_id: currentConversationId │
+│  │      }                                    │ │
+│  │    });                                    │ │
+│  │                                            │ │
+│  │    return { continue: true };             │ │
+│  │  }]                                       │ │
+│  └───────────────────────────────────────────┘ │
+│                                                  │
+└──────────────────────────────────────────────────┘
+```
+
+**Tech Stack (Planned):**
+- **Vector DB:** LanceDB (file-based, no server) or Chroma
+- **Embeddings:** Ollama with `nomic-embed-text` model
+- **Chunking:** LangChain or custom (512 token chunks)
+- **Storage:** `~/.claude/memory/` directory
+
+**Integration Steps:**
+1. Implement SDK `PostToolUse` hook
+2. Extract meaningful content from tool results
+3. Generate embeddings via Ollama
+4. Index to vector database
+5. Retrieve relevant memories on new queries
+6. Augment prompt with retrieved context
+
+**Status:** Planned, documented in `docs/assistant-upgrades/memory-system.md`
+
+---
+
+### 3. Additional MCP Servers (Future)
+
+**Planned Extensions:**
+- **Custom Tool Loader:** Dynamic tool loading from `~/.claude/tools/`
+- **ComfyUI Integration:** Image generation workflows
+- **Firebase/Firestore:** Cloud data persistence
+- **Web Search MCP:** Brave API integration
+
+**Pattern:**
+```typescript
+const customToolsServer = createSdkMcpServer({
+  name: 'custom-tools',
+  tools: loadedCustomTools  // From ~/.claude/tools/*.js
+});
+
+const q = query({
+  prompt: message,
+  options: {
+    mcpServers: {
+      'desktop-assistant-tools': mcpServer,
+      'custom-tools': customToolsServer,  // ← Additional MCP server
+      'comfyui': comfyuiServer
+    }
+  }
+});
+```
+
+---
+
+## Testing
+
+**Unit Tests:**
+```typescript
+// apps/agent-runtime/src/__tests__/sdk-adapter.test.ts
+import { SDKAdapter } from '../sdk-adapter';
+
+describe('SDKAdapter', () => {
+  it('should handle text-only messages', async () => {
+    const adapter = new SDKAdapter(mockConfig, mockMcpServer);
+    await adapter.processUserMessage('Hello', 'req-1');
+    // Assert IPC responses
+  });
+
+  it('should handle image attachments', async () => {
+    const images = [{ data: 'base64...', mime_type: 'image/png' }];
+    await adapter.processUserMessage('Analyze this', 'req-2', images);
+    // Assert AsyncIterable handling
+  });
+
+  it('should interrupt running query', async () => {
+    const promise = adapter.processUserMessage('Long task', 'req-3');
+    await adapter.interrupt();
+    // Assert query interrupted
+  });
+});
+```
+
+**Integration Tests:**
+```bash
+# Test full SDK integration
+node apps/agent-runtime/test-sdk-adapter.js
+```
+
+---
 
 ## Troubleshooting
 
 **Agent not responding:**
-- Check API key is valid
-- Verify stdio connection
-- Review stderr logs
+- ✅ Check API key: `ANTHROPIC_API_KEY` in `.env`
+- ✅ Verify stdio connection: Look for `ready` message
+- ✅ Review stderr logs: `console.error()` output
 
 **Tool execution fails:**
-- Validate tool input schemas
-- Check tool permissions
-- Review error messages in logs
+- ✅ Validate tool registered in MCP server
+- ✅ Check Zod schema matches input
+- ✅ Verify path permissions (filesystem tools)
+
+**EPIPE errors:**
+- ✅ Check Rust stdout reader (agent_ipc.rs)
+- ✅ Verify Node error handlers in place
+- ✅ Review large payload handling
+
+**Image upload crashes:**
+- ✅ Ensure AsyncIterable pattern used (not string)
+- ✅ Check for `.length` access on AsyncIterable
+- ✅ Validate base64 format (no data URL prefix)
+
+**Session not resuming:**
+- ✅ Verify session ID captured from first message
+- ✅ Check `resume` option passed to `query()`
+- ✅ Review database conversation loading
+
+---
+
+## Best Practices
+
+### 1. Always Use SDK Types
+```typescript
+// ✅ Good: Import from SDK
+import type { SDKMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+
+// ❌ Bad: Define custom types
+interface MyMessage { ... }
+```
+
+### 2. Handle AsyncIterable Properly
+```typescript
+// ✅ Good: Type guard before accessing properties
+if (typeof prompt === 'string') {
+  console.log(prompt.length);
+}
+
+// ❌ Bad: Assume type
+console.log(prompt.length);  // Crashes if AsyncIterable
+```
+
+### 3. Register Tools as MCP Server
+```typescript
+// ✅ Good: Use createSdkMcpServer
+const server = createSdkMcpServer({ name: 'tools', tools: [...] });
+
+// ❌ Bad: Pass tools directly (doesn't work)
+query({ options: { tools: [...] } });
+```
+
+### 4. Use SDK Hooks for Side Effects
+```typescript
+// ✅ Good: Use PostToolUse hook
+PostToolUse: [{ hooks: [async (input) => { await log(input); }] }]
+
+// ❌ Bad: Manual interception
+const result = await executeTool(name, input);
+await log(result);  // Easy to miss
+```
+
+### 5. Leverage Session Resumption
+```typescript
+// ✅ Good: Let SDK manage history
+query({ options: { resume: sessionId } });
+
+// ❌ Bad: Manually build message array
+const history = buildHistory(messages);
+query({ prompt: history });
+```
+
+---
+
+## Next Steps
+
+- Implement tool visualization → [05-web-ui.md](./05-web-ui.md)
+- Define IPC protocol → [06-ipc-protocol.md](./06-ipc-protocol.md)
+- Configure security → [07-security-config.md](./07-security-config.md)
+- **Future:** Add SDK hooks → [08-sdk-implementation.md](./08-sdk-implementation.md)
+- **Future:** Memory system → [10-memory-architecture.md](./10-memory-architecture.md)
+
+---
+
+## References
+
+- [Claude Agent SDK Documentation](./claudeagentsdk.md)
+- [Tool Layer Architecture](./04-tool-layer.md)
+- [Conversation Persistence](./09-conversation-persistence.md)
+- [Memory System Design](./assistant-upgrades/memory-system.md)
