@@ -1,18 +1,42 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { X, Trash2, Menu, Pin, StopCircle, Paperclip, Loader2 } from 'lucide-react'
+import { X, Trash2, Menu, Pin, StopCircle, Paperclip, Loader2, ChevronDown, Clock, CheckCircle2, XCircle } from 'lucide-react'
 import { appWindow, LogicalSize } from '@tauri-apps/api/window'
 import { invoke } from '@tauri-apps/api/tauri'
 import { useAgent } from './useAgent'
 import { useAgentLogs } from './useAgentLogs'
+import { useAgents } from './hooks/useAgents'
 import { ToolResult } from './components/ToolResult'
 import { Markdown } from './components/Markdown'
 import { Navigation } from './components/Navigation'
+import { AgentAutocomplete } from './components/AgentAutocomplete'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Card } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
 import type { ImageAttachment } from './types'
+
+// Assistant icon component (inline SVG from app icon)
+const AssistantIcon = ({ size = 16, className = '' }: { size?: number; className?: string }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 512 512"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="26"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M269.65,178.37l26.61,47.44"/>
+    <path d="M354.4,250.9c-53.36,54.34-140.66,55.14-195,1.79-.6-.59-1.2-1.18-1.79-1.79"/>
+    <path d="M380.1,375l-29.78-52.95"/>
+    <path d="M131.9,375l110.59-196.63"/>
+    <circle cx="256" cy="154.37" r="27.58"/>
+  </svg>
+)
 
 // Window sizes
 const COMPACT_HEIGHT = 60  // Compact - minimal height for input only
@@ -80,19 +104,53 @@ function App() {
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null)
   const clearInProgressRef = useRef(false)
 
-  const agentCallbacks = {
-    onConversationCleared: () => {
-      setInputValue('');
-      setPastedImages([]);
-      if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto';
-      }
-      setShouldAutoCompact(false);
-    }
-  };
+  // Agent autocomplete state
+  const [showAgentMenu, setShowAgentMenu] = useState(false)
+  const [agentFilter, setAgentFilter] = useState('')
+  const [selectedAgentIndex, setSelectedAgentIndex] = useState(0)
 
-  const { messages, toolCalls, isAgentReady, isLoading, sendMessage, clearHistory, loadMessages, interruptQuery, conversationVersionRef } = useAgent(agentCallbacks)
+  // Thinking section expansion state (keyed by message ID)
+  const [expandedThinking, setExpandedThinking] = useState<Set<string>>(new Set())
+
+  // Timer tick state to force re-renders for elapsed time updates
+  const [timerTick, setTimerTick] = useState(0)
+
+  const { messages, toolCalls, isAgentReady, isLoading, sendMessage, clearHistory, loadMessages, interruptQuery, conversationVersionRef } = useAgent()
   const { logs, clearLogs } = useAgentLogs()
+  const { agents } = useAgents()
+
+  // Redirect console logs to backend (visible in terminal for debugging)
+  useEffect(() => {
+    const originalLog = console.log
+    const originalError = console.error
+    const originalWarn = console.warn
+
+    console.log = (...args) => {
+      originalLog(...args)
+      invoke('log_to_backend', { level: 'info', message: args.join(' ') }).catch(() => {})
+    }
+
+    console.error = (...args) => {
+      originalError(...args)
+      invoke('log_to_backend', { level: 'error', message: args.join(' ') }).catch(() => {})
+    }
+
+    console.warn = (...args) => {
+      originalWarn(...args)
+      invoke('log_to_backend', { level: 'warn', message: args.join(' ') }).catch(() => {})
+    }
+
+    return () => {
+      console.log = originalLog
+      console.error = originalError
+      console.warn = originalWarn
+    }
+  }, [])
+
+  // Filter agents based on @mention input
+  const filteredAgents = agents.filter(agent =>
+    agent.name.toLowerCase().includes(agentFilter.toLowerCase())
+  )
 
   // Filter slash commands based on input
   const filteredCommands = inputValue.startsWith('/')
@@ -107,10 +165,39 @@ function App() {
     localStorage.setItem('theme', theme)
   }, [theme])
 
-  // Set initial compact size on mount
+  // Client-side timer for smooth elapsed time updates
+  // Forces re-render every second when tools are running
+  useEffect(() => {
+    // Check for both pending and running tools (matches the UI filter logic)
+    const activeTools = toolCalls.filter(tc =>
+      (tc.status === 'pending' || tc.status === 'running') && tc.startTime
+    )
+
+    if (activeTools.length === 0) {
+      return // No timer needed when no tools are active
+    }
+
+    // Update every second to show smooth elapsed time
+    const intervalId = setInterval(() => {
+      // Increment tick to force re-render
+      setTimerTick(prev => prev + 1)
+    }, 1000)
+
+    return () => clearInterval(intervalId)
+  }, [toolCalls]) // Re-run when toolCalls changes (tools start/stop/update)
+
+  // Set initial compact size ONLY on first mount (not on HMR remount)
   useEffect(() => {
     const setInitialSize = async () => {
-      await appWindow.setSize(new LogicalSize(WINDOW_WIDTH, COMPACT_HEIGHT))
+      // Only set to compact if window is not already larger
+      // This preserves expanded state during HMR while still initializing properly on app start
+      const currentSize = await appWindow.innerSize()
+      if (currentSize.height <= COMPACT_HEIGHT + 10) { // +10px tolerance
+        await appWindow.setSize(new LogicalSize(WINDOW_WIDTH, COMPACT_HEIGHT))
+      } else {
+        // Window is already expanded, preserve that state
+        setIsExpanded(true)
+      }
     }
     setInitialSize()
   }, [])
@@ -426,6 +513,43 @@ function App() {
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Handle agent autocomplete navigation
+    if (showAgentMenu && filteredAgents.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setSelectedAgentIndex(prev =>
+          prev < filteredAgents.length - 1 ? prev + 1 : 0
+        )
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setSelectedAgentIndex(prev =>
+          prev > 0 ? prev - 1 : filteredAgents.length - 1
+        )
+        return
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault()
+        const selectedAgent = filteredAgents[selectedAgentIndex]
+        if (selectedAgent) {
+          const newValue = inputValue.replace(/@\w*$/, `@${selectedAgent.name} `)
+          setInputValue(newValue)
+          setShowAgentMenu(false)
+          setTimeout(() => {
+            e.currentTarget.focus()
+            e.currentTarget.setSelectionRange(newValue.length, newValue.length)
+          }, 0)
+        }
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setShowAgentMenu(false)
+        return
+      }
+    }
+
     // Handle slash menu navigation
     if (showSlashMenu && filteredCommands.length > 0) {
       if (e.key === 'ArrowDown') {
@@ -466,6 +590,16 @@ function App() {
     const value = e.target.value
     setInputValue(value)
 
+    // Check for @mention syntax (only at end of input)
+    const atMatch = value.match(/@(\w*)$/)
+    if (atMatch) {
+      setAgentFilter(atMatch[1])
+      setShowAgentMenu(true)
+      setSelectedAgentIndex(0)
+    } else {
+      setShowAgentMenu(false)
+    }
+
     // Show slash menu when typing slash command
     if (value.startsWith('/') && !value.includes(' ')) {
       setShowSlashMenu(true)
@@ -493,6 +627,16 @@ function App() {
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
+    // console.log('[APP DEBUG] Messages updated:', messages.length, 'messages');
+    // messages.forEach((msg, i) => {
+    //   console.log(`[APP DEBUG] Message ${i}:`, {
+    //     id: msg.id,
+    //     role: msg.role,
+    //     contentLength: msg.content.length,
+    //     contentPreview: msg.content.substring(0, 50),
+    //     isStreaming: msg.isStreaming
+    //   });
+    // });
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
@@ -570,8 +714,13 @@ function App() {
       <Navigation
         isOpen={showNavigation}
         onClose={() => {
+          console.log('[DEBUG] Navigation closing')
           setShowNavigation(false)
           resetInactivityTimer()
+          // Restore focus to textarea after closing sidebar
+          setTimeout(() => {
+            textareaRef.current?.focus()
+          }, 100)
         }}
         theme={theme}
         onThemeToggle={toggleTheme}
@@ -591,6 +740,7 @@ function App() {
             variant="ghost"
             size="icon"
             onClick={() => {
+              console.log('[DEBUG] Opening navigation, current inputValue:', inputValue.substring(0, 50))
               setShowNavigation(true)
               resetInactivityTimer()
             }}
@@ -697,10 +847,200 @@ function App() {
                       </div>
                     ) : (
                       <>
-                        <div className="break-words">
-                          <Markdown content={msg.content} />
-                          {msg.isStreaming && <span className="animate-blink ml-0.5" aria-label="Streaming">▊</span>}
-                        </div>
+                        {/* For messages WITH tools: show split content */}
+                        {msg.hasTools ? (
+                          <>
+                            {/* 1. Show content BEFORE tools */}
+                            {msg.contentBeforeTools && (
+                              <div className="break-words mb-3">
+                                <Markdown content={msg.contentBeforeTools} />
+                              </div>
+                            )}
+
+                            {/* 2. Show expandable "Thinking" section for tool usage */}
+                        {(() => {
+                          const messageTools = toolCalls.filter(tc => tc.messageId === msg.id);
+                          if (messageTools.length === 0) return null;
+
+                          const isExpanded = expandedThinking.has(msg.id);
+                          const runningTools = messageTools.filter(tc => tc.status === 'pending' || tc.status === 'running');
+                          const completedTools = messageTools.filter(tc => tc.status === 'completed');
+
+                          // Debug: Log tool status for troubleshooting
+                          if (messageTools.length > 0 && runningTools.length > 0) {
+                            console.log('[Thinking] Running tools:', runningTools.map(t => ({ name: t.name, status: t.status, input: t.input })));
+                          }
+
+                          return (
+                            <Collapsible
+                              open={isExpanded}
+                              onOpenChange={(open) => {
+                                setExpandedThinking(prev => {
+                                  const next = new Set(prev);
+                                  if (open) {
+                                    next.add(msg.id);
+                                  } else {
+                                    next.delete(msg.id);
+                                  }
+                                  return next;
+                                });
+                              }}
+                              className="mb-3"
+                            >
+                              <CollapsibleTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
+                                >
+                                  <AssistantIcon
+                                    size={16}
+                                    className={cn(runningTools.length > 0 && "animate-pulse")}
+                                  />
+                                  {/* Current tool description and elapsed time */}
+                                  <span className="text-xs flex-1 text-left max-w-[264px] truncate">
+                                    {runningTools.length > 0 ? (
+                                      <>
+                                        {(() => {
+                                          // Get the most recently started running tool (last in array)
+                                          const currentTool = runningTools[runningTools.length - 1];
+                                          // Generate description for current running tool
+                                          if (currentTool.input?.description) {
+                                            return currentTool.input.description;
+                                          }
+                                          switch (currentTool.name) {
+                                            case 'Bash':
+                                              return currentTool.input?.description || `Running command: ${currentTool.input?.command || 'unknown'}`;
+                                            case 'Read':
+                                              return `Reading ${currentTool.input?.file_path || 'file'}`;
+                                            case 'Write':
+                                              return `Writing to ${currentTool.input?.file_path || 'file'}`;
+                                            case 'Edit':
+                                              return `Editing ${currentTool.input?.file_path || 'file'}`;
+                                            case 'Glob':
+                                              return `Finding files matching "${currentTool.input?.pattern || '*'}"`;
+                                            case 'Grep':
+                                              return `Searching for "${currentTool.input?.pattern || 'text'}"`;
+                                            case 'WebSearch':
+                                              return `Searching for "${currentTool.input?.query || 'information'}"`;
+                                            case 'WebFetch':
+                                              return `Fetching ${currentTool.input?.url || 'webpage'}`;
+                                            default:
+                                              return `Using ${currentTool.name}`;
+                                          }
+                                        })()}
+                                        {(() => {
+                                          const currentTool = runningTools[runningTools.length - 1];
+                                          // Calculate elapsed time from startTime if available, otherwise use backend value
+                                          const elapsedSeconds = currentTool.startTime
+                                            ? Math.floor((Date.now() - currentTool.startTime) / 1000)
+                                            : currentTool.elapsedSeconds;
+
+                                          if (elapsedSeconds !== undefined) {
+                                            return <> • {elapsedSeconds}s</>;
+                                          }
+                                          return null;
+                                        })()}
+                                      </>
+                                    ) : (
+                                      <>Completed</>
+                                    )}
+                                  </span>
+                                  <ChevronDown
+                                    className={cn(
+                                      "h-4 w-4 transition-transform",
+                                      isExpanded && "rotate-180"
+                                    )}
+                                  />
+                                </Button>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent className="mt-2 space-y-1 max-h-[300px] overflow-y-auto overflow-x-hidden">
+                                {/* Tool steps in natural language */}
+                                {messageTools.map(tc => {
+                                  const isRunning = tc.status === 'pending' || tc.status === 'running';
+                                  // Generate natural language description
+                                  const getDescription = () => {
+                                    // If tool input has a description field, use it
+                                    if (tc.input?.description) {
+                                      return tc.input.description;
+                                    }
+                                    // Otherwise generate based on tool name and input
+                                    switch (tc.name) {
+                                      case 'Bash':
+                                        return tc.input?.description || `Running command: ${tc.input?.command || 'unknown'}`;
+                                      case 'Read':
+                                        return `Reading ${tc.input?.file_path || 'file'}`;
+                                      case 'Write':
+                                        return `Writing to ${tc.input?.file_path || 'file'}`;
+                                      case 'Edit':
+                                        return `Editing ${tc.input?.file_path || 'file'}`;
+                                      case 'Glob':
+                                        return `Finding files matching "${tc.input?.pattern || '*'}"`;
+                                      case 'Grep':
+                                        return `Searching for "${tc.input?.pattern || 'text'}"`;
+                                      case 'WebSearch':
+                                        return `Searching for "${tc.input?.query || 'information'}"`;
+                                      case 'WebFetch':
+                                        return `Fetching ${tc.input?.url || 'webpage'}`;
+                                      default:
+                                        return `Using ${tc.name}`;
+                                    }
+                                  };
+
+                                  return (
+                                    <div key={tc.id} className="flex items-start gap-2 text-sm py-1">
+                                      {/* State icon */}
+                                      {isRunning ? (
+                                        <Clock size={14} className="text-muted-foreground mt-0.5 flex-shrink-0 animate-pulse" />
+                                      ) : tc.result && !tc.result.error ? (
+                                        <CheckCircle2 size={14} className="text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
+                                      ) : (
+                                        <XCircle size={14} className="text-destructive mt-0.5 flex-shrink-0" />
+                                      )}
+                                      <span className={cn(
+                                        "flex-1",
+                                        isRunning ? "text-muted-foreground" : "text-foreground"
+                                      )}>
+                                        {getDescription()}
+                                      </span>
+                                      {isRunning && (() => {
+                                        // Calculate elapsed time from startTime if available, otherwise use backend value
+                                        const elapsedSeconds = tc.startTime
+                                          ? (Date.now() - tc.startTime) / 1000
+                                          : tc.elapsedSeconds;
+
+                                        if (elapsedSeconds !== undefined) {
+                                          return (
+                                            <span className="text-xs text-muted-foreground tabular-nums">
+                                              {elapsedSeconds.toFixed(1)}s
+                                            </span>
+                                          );
+                                        }
+                                        return null;
+                                      })()}
+                                    </div>
+                                  );
+                                })}
+                              </CollapsibleContent>
+                            </Collapsible>
+                          );
+                        })()}
+
+                            {/* 3. Show content AFTER tools */}
+                            {msg.contentAfterTools && (
+                              <div className="break-words">
+                                <Markdown content={msg.contentAfterTools} />
+                                {msg.isStreaming && <span className="animate-blink ml-0.5" aria-label="Streaming">▊</span>}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          /* For messages WITHOUT tools: show full content */
+                          <div className="break-words">
+                            <Markdown content={msg.content} />
+                            {msg.isStreaming && <span className="animate-blink ml-0.5" aria-label="Streaming">▊</span>}
+                          </div>
+                        )}
                         {/* Show images if present */}
                         {msg.images && msg.images.length > 0 && (
                           <div className="flex flex-wrap gap-2 mt-2">
@@ -715,10 +1055,6 @@ function App() {
                             ))}
                           </div>
                         )}
-                        {/* Show tool calls for this message */}
-                        {toolCalls.filter(tc => tc.id.includes(msg.id)).map(tc => (
-                          <ToolResult key={tc.id} toolCall={tc} />
-                        ))}
                       </>
                     )}
                   </div>
@@ -757,18 +1093,11 @@ function App() {
                 )}
               </div>
             ))}
-            {/* Show "Thinking..." indicator when loading and no assistant response yet */}
+            {/* Show animated Assistant icon when loading and no assistant response yet */}
             {isLoading && messages.length > 0 && messages[messages.length - 1].role === 'user' && (
-              <Card className="max-w-[85%] p-3 bg-muted">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span>Thinking</span>
-                  <span className="flex gap-1">
-                    <span className="animate-thinkingDot1">.</span>
-                    <span className="animate-thinkingDot2">.</span>
-                    <span className="animate-thinkingDot3">.</span>
-                  </span>
-                </div>
-              </Card>
+              <div className="flex items-center justify-start">
+                <AssistantIcon size={32} className="animate-pulse text-muted-foreground" />
+              </div>
             )}
             <div ref={messagesEndRef} />
           </div>
@@ -804,6 +1133,24 @@ function App() {
               )}
             </div>
           </Card>
+        )}
+        {/* @mention agent autocomplete menu */}
+        {showAgentMenu && filteredAgents.length > 0 && (
+          <AgentAutocomplete
+            agents={filteredAgents}
+            selectedIndex={selectedAgentIndex}
+            onSelect={(agent) => {
+              const newValue = inputValue.replace(/@\w*$/, `@${agent.name} `)
+              setInputValue(newValue)
+              setShowAgentMenu(false)
+              const textarea = document.querySelector('textarea')
+              if (textarea) {
+                textarea.focus()
+                textarea.setSelectionRange(newValue.length, newValue.length)
+              }
+            }}
+            position="top"
+          />
         )}
         {/* Slash command autocomplete menu */}
         {showSlashMenu && filteredCommands.length > 0 && (
