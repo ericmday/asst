@@ -891,7 +891,7 @@ function App() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
+                                  className="w-full min-w-[283px] justify-start gap-2 text-muted-foreground hover:text-foreground"
                                 >
                                   <AssistantIcon
                                     size={16}
@@ -988,36 +988,49 @@ function App() {
                                   };
 
                                   return (
-                                    <div key={tc.id} className="flex items-start gap-2 text-sm py-1">
-                                      {/* State icon */}
-                                      {isRunning ? (
-                                        <Clock size={14} className="text-muted-foreground mt-0.5 flex-shrink-0 animate-pulse" />
-                                      ) : tc.result && !tc.result.error ? (
-                                        <CheckCircle2 size={14} className="text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
-                                      ) : (
-                                        <XCircle size={14} className="text-destructive mt-0.5 flex-shrink-0" />
-                                      )}
-                                      <span className={cn(
-                                        "flex-1",
-                                        isRunning ? "text-muted-foreground" : "text-foreground"
-                                      )}>
-                                        {getDescription()}
-                                      </span>
-                                      {isRunning && (() => {
-                                        // Calculate elapsed time from startTime if available, otherwise use backend value
-                                        const elapsedSeconds = tc.startTime
-                                          ? (Date.now() - tc.startTime) / 1000
-                                          : tc.elapsedSeconds;
+                                    <div key={tc.id} className="py-1">
+                                      {/* Main tool row */}
+                                      <div className="flex items-start gap-2 text-sm">
+                                        {/* State icon */}
+                                        {isRunning ? (
+                                          <Clock size={14} className="text-muted-foreground mt-0.5 flex-shrink-0 animate-pulse" />
+                                        ) : tc.result && !tc.result.error ? (
+                                          <CheckCircle2 size={14} className="text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
+                                        ) : (
+                                          <XCircle size={14} className="text-destructive mt-0.5 flex-shrink-0" />
+                                        )}
+                                        <span className={cn(
+                                          "flex-1",
+                                          isRunning ? "text-muted-foreground" : "text-foreground"
+                                        )}>
+                                          {getDescription()}
+                                        </span>
+                                        {isRunning && (() => {
+                                          // Calculate elapsed time from startTime if available, otherwise use backend value
+                                          const elapsedSeconds = tc.startTime
+                                            ? (Date.now() - tc.startTime) / 1000
+                                            : tc.elapsedSeconds;
 
-                                        if (elapsedSeconds !== undefined) {
-                                          return (
-                                            <span className="text-xs text-muted-foreground tabular-nums">
-                                              {elapsedSeconds.toFixed(1)}s
-                                            </span>
-                                          );
-                                        }
-                                        return null;
-                                      })()}
+                                          if (elapsedSeconds !== undefined) {
+                                            return (
+                                              <span className="text-xs text-muted-foreground tabular-nums">
+                                                {elapsedSeconds.toFixed(1)}s
+                                              </span>
+                                            );
+                                          }
+                                          return null;
+                                        })()}
+                                      </div>
+                                      {/* Progress details - indented sub-items */}
+                                      {isRunning && tc.progressDetails && tc.progressDetails.length > 0 && (
+                                        <div className="ml-6 mt-1 space-y-0.5">
+                                          {tc.progressDetails.map((detail, idx) => (
+                                            <div key={idx} className="text-xs text-muted-foreground">
+                                              {detail}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
                                     </div>
                                   );
                                 })}

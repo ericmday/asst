@@ -1,52 +1,62 @@
 # Development Status
 
 **Last Updated:** December 6, 2025
-**Current Phase:** Thinking Indicators Enhancement
-**Progress:** 75% (Core features complete, dynamic tool progress indicators working, Phase 1 complete)
+**Current Phase:** Thinking Indicators Enhancement - Phase 2
+**Progress:** 85% (Phase 1 complete, Phase 2 backend/state complete, UI pending)
 
 ---
 
 ## 🎯 Current Focus
 
 ### 🔄 Current Task
-**Thinking Indicators Enhancement - Anthropic-Style Progress Display**
+**Thinking Indicators Enhancement - Phase 2: Rich Progress Updates**
 
-**Status:** Phase 1 complete, ready for Phase 2
+**Status:** Backend + State Management Complete (6 of 7 steps done)
 - [x] Research Anthropic's extended thinking patterns ✅
 - [x] Create comprehensive implementation plan → `docs/13-thinking-indicators-plan.md` ✅
 - [x] **Phase 1:** Implement elapsed time indicator + step counter ✅
-- [ ] **Phase 2:** Add rich progress updates (intermediate results)
+- [x] **Phase 2 Backend:** Tool-specific progress message generation (8 tool types) ✅
+- [x] **Phase 2 State:** Event handling with memory limits (.slice(-4)) ✅
+- [ ] **Phase 2 UI:** Indented progress details display (NEXT)
 - [ ] **Phase 3:** Backend streaming for detailed progress
 
 **Plan:** `docs/13-thinking-indicators-plan.md`
 
-### ✅ Last Completed (Session 44 - Dec 6)
-**Dynamic Tool Progress Indicators - Phase 1 Complete:**
-- ✅ **FEATURE COMPLETE:** Tool descriptions now update dynamically with live elapsed time
-- ✅ Fixed root cause: SDK doesn't emit tool_progress events, tools execute internally before we see them
-- ✅ Implemented simulated tool_progress event generation (4 events @ 1s intervals per tool)
-- ✅ Added text truncation to tool descriptions (264px max width with ellipsis)
-- ✅ Cleaned up debug logging (commented out verbose token/message logs)
-- ✅ Verified smooth UX: tool descriptions appear → timer increments (1s→2s→3s→4s) → next tool → "Completed"
+**Next Steps:**
+1. Update App.tsx tool rendering - add indented progress details (Step 7)
+2. Test with WebSearch, Bash, Read tools (Step 8)
+3. Verify visual polish and performance
+
+### ✅ Last Completed (Session 45 - Dec 6)
+**Rich Progress Updates - Backend & State Management (Steps 1-6 Complete):**
+- ✅ Added `tool_progress_detail` IPC event type to backend and frontend type systems
+- ✅ Implemented `getProgressDetail()` method with 8 tool-specific progress templates (WebSearch, WebFetch, Grep, Glob, Read, Edit, Write, Bash)
+- ✅ Modified `toolsUsed` array to track tool inputs for contextual messages
+- ✅ Enhanced progress loop to emit detail events alongside elapsed time (2 events/second per tool)
+- ✅ Added frontend types: `ToolProgressDetailResponse` interface and `progressDetails` field to `ToolCall`
+- ✅ Implemented `tool_progress_detail` event handler with `.slice(-4)` memory limit in useAgent.ts
 
 **Implementation Details:**
-- Backend generates synthetic tool_progress events every 1 second for 4 seconds per tool
-- Events include tool_use_id, tool_name, elapsed_time_seconds
-- Frontend state machine: pending → running (on first progress) → completed
-- Tool description text constrained to 264px with CSS truncate (overflow: hidden, text-overflow: ellipsis)
-- Each tool runs for ~4.5 seconds total (4s progress + 0.5s between tools)
+- Backend emits both `tool_progress` (elapsed time) and `tool_progress_detail` (contextual message) every second
+- Progress messages use actual tool input data (e.g., "Searching for 'quantum computing'" not generic "Searching")
+- Each tool shows 4 contextual progress steps that match the 4-second progress window
+- Frontend appends details to array, keeps only last 4 entries to prevent memory bloat
+- Generic fallback messages for unknown tool types ensure graceful degradation
 
 **Files Modified:**
-- `apps/agent-runtime/src/sdk-adapter.ts` - Generate tool_progress events in handleAssistantMessage()
-- `apps/tauri-shell/src/useAgent.ts` - Commented out verbose debug logs
-- `apps/tauri-shell/src/App.tsx` - Commented out debug logs, added max-w-[264px] truncate to tool descriptions
+- `apps/agent-runtime/src/sdk-adapter.ts` - Added types, getProgressDetail() method, tool input tracking, detail event emission
+- `apps/tauri-shell/src/types.ts` - Added ToolProgressDetailResponse, progressDetails field
+- `apps/tauri-shell/src/useAgent.ts` - Added tool_progress_detail handler with memory limit
+
+**Remaining (Steps 7-8):**
+- UI rendering in App.tsx - display progress details as indented sub-items under each tool
+- Testing with real tool usage (WebSearch, Bash, Read, multi-tool queries)
 
 **Impact:**
-- Tool activity is now fully visible with live updates
-- Users see exactly what tool is running and for how long
-- No more "black box" during multi-tool operations
-- UI stays within bounds even with long search queries
-- Much cleaner console logs for debugging
+- Backend and state management foundation complete for rich progress display
+- Progress messages will be tool-aware and contextual (not generic)
+- Memory-efficient with automatic cleanup (.slice(-4))
+- Ready for UI integration to show "Anthropic-style" thinking indicators
 
 **Previous Session (Session 43 - Dec 5)
 **Tool Usage Visibility & Thinking Indicators UI:**
@@ -240,6 +250,7 @@
 
 ## 📝 Recent Sessions
 
+**Session 45 (Dec 6)** - Phase 2 backend/state (6/7 steps): Tool-specific progress message generation, event handling, types (UI pending)
 **Session 44 (Dec 6)** - Dynamic tool progress: Implemented simulated progress events, text truncation, clean UX (Phase 1 complete)
 **Session 43 (Dec 5)** - Tool usage UI overhaul: Natural language descriptions, animated icons, Anthropic research, thinking indicators plan
 **Session 42 (Dec 4)** - Real-time tool activity: Implemented backend forwarding of tool_progress events to UI

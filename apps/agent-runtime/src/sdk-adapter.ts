@@ -9,12 +9,19 @@ import { loadAgentDefinitions, getAgentMetadata, type AgentConfig } from './agen
  * IPC Response types that match the protocol expected by Tauri shell
  */
 export interface AgentResponse {
-  type: 'token' | 'tool_use' | 'tool_result' | 'tool_progress' | 'done' | 'error';
+  type: 'token' | 'tool_use' | 'tool_result' | 'tool_progress' | 'tool_progress_detail' | 'done' | 'error';
   id: string;
   data?: unknown;
   token?: string;
   error?: string;
   timestamp: number;
+}
+
+export interface ToolProgressDetailData {
+  tool_use_id: string;
+  tool_name: string;
+  detail: string;  // Human-readable progress message
+  step: number;    // Which step in sequence (1-4)
 }
 
 export interface ImageAttachment {
@@ -45,6 +52,7 @@ export class SDKAdapter {
   private currentAssistantMessage: string = '';  // Accumulate assistant response
   private anthropic: Anthropic;  // Direct API client for title generation
   private currentQuery?: Query;  // Reference to running query for interrupt support
+  private isInterrupted: boolean = false;  // Flag to track if current query was interrupted
   private agents: Record<string, AgentDefinition> = {};  // SDK subagents
   private pendingPermissions: Map<string, { resolve: (result: PermissionResult) => void; reject: (error: Error) => void }> = new Map();  // Track pending permission requests
 
@@ -186,6 +194,7 @@ export class SDKAdapter {
   async interrupt(): Promise<void> {
     if (this.currentQuery) {
       this.log('info', 'Interrupting current query...');
+      this.isInterrupted = true;  // Set flag to stop processing
       await this.currentQuery.interrupt();
       this.currentQuery = undefined;
       this.log('info', 'Query interrupted successfully');
@@ -209,6 +218,7 @@ export class SDKAdapter {
     this.currentRequestId = requestId;
     this.currentAssistantMessageId = randomUUID();  // Generate unique ID for assistant's response
     this.currentAssistantMessage = '';  // Reset assistant message accumulator
+    this.isInterrupted = false;  // Reset interrupt flag for new query
 
     try {
       // Check for slash commands
@@ -364,6 +374,12 @@ export class SDKAdapter {
         }, 5000);
 
         for await (const sdkMessage of q) {
+          // Check if query was interrupted
+          if (this.isInterrupted) {
+            this.log('info', 'Breaking out of message loop due to interrupt');
+            break;
+          }
+
           messageCount++;
           lastMessageTime = Date.now();
           console.log(`[SDK-ADAPTER] Received SDK message #${messageCount}:`, sdkMessage.type || 'unknown type');
@@ -379,6 +395,15 @@ export class SDKAdapter {
 
         clearInterval(timeoutMonitor);
         console.log(`[SDK-ADAPTER] ✅ SDK stream complete. Received ${messageCount} messages total.`);
+
+        // Send done message if interrupted
+        if (this.isInterrupted) {
+          this.sendResponse({
+            type: 'done',
+            id: this.currentAssistantMessageId,
+            timestamp: Date.now(),
+          });
+        }
       } catch (streamError) {
         this.log('error', 'SDK streaming error:', streamError);
         // Clear query reference
@@ -560,7 +585,7 @@ export class SDKAdapter {
     const apiMessage = message.message;
     console.log('[SDK-ADAPTER] API message content blocks:', apiMessage.content.length);
     let textContent = '';
-    const toolsUsed: Array<{ id: string; name: string }> = [];
+    const toolsUsed: Array<{ id: string; name: string; input: any }> = [];
 
     for (const block of apiMessage.content) {
       console.log('[SDK-ADAPTER] Processing content block:', block.type);
@@ -570,7 +595,7 @@ export class SDKAdapter {
       } else if (block.type === 'tool_use') {
         console.log('[SDK-ADAPTER] Emitting tool use:', block.name);
         // Track this tool for later result emission
-        toolsUsed.push({ id: block.id, name: block.name });
+        toolsUsed.push({ id: block.id, name: block.name, input: block.input });
 
         // Emit tool use event
         this.sendResponse({
@@ -598,6 +623,7 @@ export class SDKAdapter {
       for (let elapsed = 1; elapsed <= progressUpdates; elapsed++) {
         await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
 
+        // Emit elapsed time progress
         this.sendResponse({
           type: 'tool_progress',
           id: this.currentAssistantMessageId,
@@ -605,6 +631,20 @@ export class SDKAdapter {
             tool_use_id: tool.id,
             tool_name: tool.name,
             elapsed_time_seconds: elapsed,
+          },
+          timestamp: Date.now(),
+        });
+
+        // Emit detailed progress message for this step
+        const detail = this.getProgressDetail(tool.name, tool.input, elapsed);
+        this.sendResponse({
+          type: 'tool_progress_detail',
+          id: this.currentAssistantMessageId,
+          data: {
+            tool_use_id: tool.id,
+            tool_name: tool.name,
+            detail,
+            step: elapsed,
           },
           timestamp: Date.now(),
         });
@@ -871,6 +911,109 @@ Title:`
       error,
       timestamp: Date.now(),
     });
+  }
+
+  /**
+   * Generate tool-specific progress details based on tool type and step
+   */
+  private getProgressDetail(toolName: string, toolInput: any, step: number): string {
+    switch (toolName) {
+      case 'WebSearch':
+        const query = toolInput?.query || 'information';
+        switch (step) {
+          case 1: return `Searching for "${query}"`;
+          case 2: return `Found results, analyzing relevance`;
+          case 3: return `Processing top results`;
+          case 4: return `Extracting key information`;
+        }
+        break;
+
+      case 'WebFetch':
+        const url = toolInput?.url || 'webpage';
+        const domain = url.includes('://') ? new URL(url).hostname : url;
+        switch (step) {
+          case 1: return `Connecting to ${domain}`;
+          case 2: return `Downloading content`;
+          case 3: return `Processing page structure`;
+          case 4: return `Extracting relevant data`;
+        }
+        break;
+
+      case 'Grep':
+        const pattern = toolInput?.pattern || 'text';
+        switch (step) {
+          case 1: return `Searching for "${pattern}"`;
+          case 2: return `Scanning files`;
+          case 3: return `Filtering matches`;
+          case 4: return `Organizing results`;
+        }
+        break;
+
+      case 'Glob':
+        const globPattern = toolInput?.pattern || '*';
+        switch (step) {
+          case 1: return `Finding files matching "${globPattern}"`;
+          case 2: return `Scanning directory tree`;
+          case 3: return `Filtering matches`;
+          case 4: return `Sorting results`;
+        }
+        break;
+
+      case 'Read':
+        const filePath = toolInput?.file_path || 'file';
+        const fileName = filePath.split('/').pop() || filePath;
+        switch (step) {
+          case 1: return `Opening ${fileName}`;
+          case 2: return `Reading content`;
+          case 3: return `Processing file structure`;
+          case 4: return `Preparing output`;
+        }
+        break;
+
+      case 'Edit':
+        const editFile = toolInput?.file_path || 'file';
+        const editFileName = editFile.split('/').pop() || editFile;
+        switch (step) {
+          case 1: return `Opening ${editFileName}`;
+          case 2: return `Applying changes`;
+          case 3: return `Validating edits`;
+          case 4: return `Saving file`;
+        }
+        break;
+
+      case 'Write':
+        const writeFile = toolInput?.file_path || 'file';
+        const writeFileName = writeFile.split('/').pop() || writeFile;
+        switch (step) {
+          case 1: return `Creating ${writeFileName}`;
+          case 2: return `Writing content`;
+          case 3: return `Validating format`;
+          case 4: return `Finalizing`;
+        }
+        break;
+
+      case 'Bash':
+        const command = toolInput?.command?.substring(0, 30) || 'command';
+        const shortCmd = command.length > 30 ? command + '...' : command;
+        switch (step) {
+          case 1: return `Executing ${shortCmd}`;
+          case 2: return `Running in shell`;
+          case 3: return `Processing output`;
+          case 4: return `Completing execution`;
+        }
+        break;
+
+      default:
+        // Generic progress for unknown tools
+        switch (step) {
+          case 1: return `Starting ${toolName}`;
+          case 2: return `Processing`;
+          case 3: return `Analyzing results`;
+          case 4: return `Finalizing`;
+        }
+    }
+
+    return `Step ${step}`;
   }
 
   /**

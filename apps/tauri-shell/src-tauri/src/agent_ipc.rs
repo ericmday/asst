@@ -14,8 +14,21 @@ pub enum AgentResponse {
     Token { id: String, token: String, timestamp: i64 },
     ToolUse { id: String, data: serde_json::Value, timestamp: i64 },
     ToolResult { id: String, data: serde_json::Value, timestamp: i64 },
+    ToolProgress { id: String, data: serde_json::Value, timestamp: i64 },
+    ToolProgressDetail { id: String, data: serde_json::Value, timestamp: i64 },
     Done { id: String, #[serde(skip_serializing_if = "Option::is_none")] data: Option<serde_json::Value>, timestamp: i64 },
     Error { id: String, error: String, timestamp: i64 },
+    PermissionRequest {
+        id: String,
+        permission_id: String,
+        tool_name: String,
+        tool_input: serde_json::Value,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        blocked_path: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        decision_reason: Option<String>,
+        timestamp: i64
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,6 +41,12 @@ pub struct AgentRequest {
     pub images: Option<String>, // JSON string of image attachments
     #[serde(skip_serializing_if = "Option::is_none")]
     pub conversation_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permission_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permission_message: Option<String>,
 }
 
 pub struct AgentProcess {

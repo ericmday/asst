@@ -198,6 +198,26 @@ export function useAgent() {
         return;
       }
 
+      if (response.type === 'tool_progress_detail') {
+        if (currentVersion !== conversationVersionRef.current) return;
+        console.log('[PROGRESS DETAIL]', response.data);
+        setToolCalls((prev) =>
+          prev.map((call) =>
+            call.id === response.data.tool_use_id
+              ? {
+                  ...call,
+                  // Append new detail, keep only last 4 entries to prevent bloat
+                  progressDetails: [
+                    ...(call.progressDetails || []),
+                    response.data.detail
+                  ].slice(-4)
+                }
+              : call
+          )
+        );
+        return;
+      }
+
       if (response.type === 'done') {
         if (currentVersion !== conversationVersionRef.current) return; // Guard against stale responses
         setMessages((prev) => {
