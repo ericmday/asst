@@ -2,61 +2,64 @@
 
 **Last Updated:** December 6, 2025
 **Current Phase:** Thinking Indicators Enhancement - Phase 2
-**Progress:** 85% (Phase 1 complete, Phase 2 backend/state complete, UI pending)
+**Progress:** 100% (Phase 1 & 2 complete, interrupt fix implemented)
 
 ---
 
 ## 🎯 Current Focus
 
 ### 🔄 Current Task
-**Thinking Indicators Enhancement - Phase 2: Rich Progress Updates**
+**Thinking Indicators Enhancement - Phase 2: COMPLETE ✅**
 
-**Status:** Backend + State Management Complete (6 of 7 steps done)
+**Status:** All Steps Complete + Critical Interrupt Fix
 - [x] Research Anthropic's extended thinking patterns ✅
 - [x] Create comprehensive implementation plan → `docs/13-thinking-indicators-plan.md` ✅
 - [x] **Phase 1:** Implement elapsed time indicator + step counter ✅
 - [x] **Phase 2 Backend:** Tool-specific progress message generation (8 tool types) ✅
 - [x] **Phase 2 State:** Event handling with memory limits (.slice(-4)) ✅
-- [ ] **Phase 2 UI:** Indented progress details display (NEXT)
-- [ ] **Phase 3:** Backend streaming for detailed progress
+- [x] **Phase 2 UI:** Indented progress details display ✅
+- [x] **Critical Fix:** Interrupt functionality (stops API calls immediately) ✅
+- [ ] **Phase 3:** Backend streaming for detailed progress (future enhancement)
 
 **Plan:** `docs/13-thinking-indicators-plan.md`
 
 **Next Steps:**
-1. Update App.tsx tool rendering - add indented progress details (Step 7)
-2. Test with WebSearch, Bash, Read tools (Step 8)
-3. Verify visual polish and performance
+1. Choose next feature from task list below
+2. Consider Phase 3 (backend streaming) or move to other priorities
 
 ### ✅ Last Completed (Session 45 - Dec 6)
-**Rich Progress Updates - Backend & State Management (Steps 1-6 Complete):**
-- ✅ Added `tool_progress_detail` IPC event type to backend and frontend type systems
-- ✅ Implemented `getProgressDetail()` method with 8 tool-specific progress templates (WebSearch, WebFetch, Grep, Glob, Read, Edit, Write, Bash)
-- ✅ Modified `toolsUsed` array to track tool inputs for contextual messages
-- ✅ Enhanced progress loop to emit detail events alongside elapsed time (2 events/second per tool)
-- ✅ Added frontend types: `ToolProgressDetailResponse` interface and `progressDetails` field to `ToolCall`
-- ✅ Implemented `tool_progress_detail` event handler with `.slice(-4)` memory limit in useAgent.ts
+**Phase 2 Progress Details UI + Critical Interrupt Fix - FEATURE COMPLETE:**
+- ✅ **Fixed missing Rust enum variant** - Added `ToolProgressDetail` to `AgentResponse` enum (was causing events to be dropped)
+- ✅ **Implemented UI rendering** - Added indented progress details display in App.tsx under each running tool
+- ✅ **Fixed interrupt button** - Added `isInterrupted` flag with proper loop break logic to stop API calls immediately
+- ✅ **Verified both features working** - Progress details show contextual messages, interrupt stops execution cleanly
 
-**Implementation Details:**
-- Backend emits both `tool_progress` (elapsed time) and `tool_progress_detail` (contextual message) every second
-- Progress messages use actual tool input data (e.g., "Searching for 'quantum computing'" not generic "Searching")
-- Each tool shows 4 contextual progress steps that match the 4-second progress window
-- Frontend appends details to array, keeps only last 4 entries to prevent memory bloat
-- Generic fallback messages for unknown tool types ensure graceful degradation
+**Progress Details UI (Step 7 Complete):**
+- Renders `tc.progressDetails` as indented sub-items (ml-6, text-xs)
+- Only displays when tool status is 'running' and details array has content
+- Shows up to 4 contextual progress messages per tool
+- Messages update every second with tool-specific context (e.g., "Searching for 'quantum computing'...")
+
+**Interrupt Fix (Critical):**
+- Added `isInterrupted: boolean` flag to SDKAdapter class
+- Set flag to true in `interrupt()` method, reset to false on new query
+- Modified message loop to check flag and break immediately when interrupted
+- Sends "done" message to frontend for clean UI transition
+- **Impact:** Prevents wasted API calls, saves costs when user stops mid-execution
 
 **Files Modified:**
-- `apps/agent-runtime/src/sdk-adapter.ts` - Added types, getProgressDetail() method, tool input tracking, detail event emission
-- `apps/tauri-shell/src/types.ts` - Added ToolProgressDetailResponse, progressDetails field
-- `apps/tauri-shell/src/useAgent.ts` - Added tool_progress_detail handler with memory limit
-
-**Remaining (Steps 7-8):**
-- UI rendering in App.tsx - display progress details as indented sub-items under each tool
-- Testing with real tool usage (WebSearch, Bash, Read, multi-tool queries)
+- `apps/agent-runtime/src/sdk-adapter.ts` - Added interrupt flag, loop break logic, done message
+- `apps/tauri-shell/src-tauri/src/agent_ipc.rs` - Added ToolProgressDetail enum variant (critical fix)
+- `apps/tauri-shell/src/App.tsx` - Added UI rendering for progress details
+- `apps/tauri-shell/src/useAgent.ts` - Event handler already implemented (Session 44)
+- `apps/tauri-shell/src/types.ts` - Types already defined (Session 44)
+- `STATUS.md` - Updated progress to 100%
 
 **Impact:**
-- Backend and state management foundation complete for rich progress display
-- Progress messages will be tool-aware and contextual (not generic)
-- Memory-efficient with automatic cleanup (.slice(-4))
-- Ready for UI integration to show "Anthropic-style" thinking indicators
+- ✅ Phase 2 thinking indicators COMPLETE - matches Anthropic Claude app UX
+- ✅ Real-time contextual progress feedback during tool execution
+- ✅ Interrupt button now properly stops execution (saves API costs)
+- 🎯 Ready for Phase 3 (backend streaming) or next priority feature
 
 **Previous Session (Session 43 - Dec 5)
 **Tool Usage Visibility & Thinking Indicators UI:**
@@ -250,7 +253,7 @@
 
 ## 📝 Recent Sessions
 
-**Session 45 (Dec 6)** - Phase 2 backend/state (6/7 steps): Tool-specific progress message generation, event handling, types (UI pending)
+**Session 45 (Dec 6)** - Phase 2 COMPLETE + Interrupt fix: Progress details UI rendering, fixed missing Rust enum variant, interrupt loop break (saves API costs)
 **Session 44 (Dec 6)** - Dynamic tool progress: Implemented simulated progress events, text truncation, clean UX (Phase 1 complete)
 **Session 43 (Dec 5)** - Tool usage UI overhaul: Natural language descriptions, animated icons, Anthropic research, thinking indicators plan
 **Session 42 (Dec 4)** - Real-time tool activity: Implemented backend forwarding of tool_progress events to UI
